@@ -1,0 +1,39 @@
+name: Security & Quality Gates
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  security-and-quality:
+    name: Security Audit, Typecheck, Tests & Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies (clean install)
+        run: npm ci
+
+      - name: Run dependency security audit
+        run: npm run audit
+
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run test suite
+        run: npm run test
+
+      - name: Run production build
+        run: npm run build
