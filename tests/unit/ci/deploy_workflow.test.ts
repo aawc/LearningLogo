@@ -67,4 +67,40 @@ describe('GitHub Actions Deployment Workflow (.github/workflows/deploy.yml)', ()
     expect(content).toContain('site_deploy_git/releases');
     expect(content).not.toContain('cp -rn site_deploy_git/* site_deploy/');
   });
+
+  it('verifies git user identity is configured inside gh_pages_work before git commit is invoked', () => {
+    const content = readFileSync(workflowPath, 'utf-8');
+
+    // Find the Sync and Commit to gh-pages Branch step
+    const syncStepMatch = content.match(/- name: Sync and Commit to gh-pages Branch([\s\S]*?)(?=- name:|$)/);
+    expect(syncStepMatch).not.toBeNull();
+    const syncStep = syncStepMatch![1]!;
+
+    // Must configure git user.name and user.email
+    expect(syncStep).toContain('git config user.name "github-actions[bot]"');
+    expect(syncStep).toContain('git config user.email "github-actions[bot]@users.noreply.github.com"');
+
+    // Defect mechanism verification: git config must be executed inside gh_pages_work after git init
+    // to avoid "fatal: empty ident name" in fresh runner environments where identity is unconfigured.
+    const cdIndex = syncStep.indexOf('cd gh_pages_work');
+    const initIndex = syncStep.indexOf('git init');
+    const nameIndex = syncStep.indexOf('git config user.name "github-actions[bot]"');
+    const emailIndex = syncStep.indexOf('git config user.email "github-actions[bot]@users.noreply.github.com"');
+    const commitIndex = syncStep.indexOf('git commit');
+
+    expect(cdIndex).toBeGreaterThan(-1);
+    expect(initIndex).toBeGreaterThan(-1);
+    expect(nameIndex).toBeGreaterThan(-1);
+    expect(emailIndex).toBeGreaterThan(-1);
+    expect(commitIndex).toBeGreaterThan(-1);
+
+    // Identity must be configured inside gh_pages_work repository (after cd and git init), before committing
+    expect(nameIndex).toBeGreaterThan(cdIndex);
+    expect(nameIndex).toBeGreaterThan(initIndex);
+    expect(nameIndex).toBeLessThan(commitIndex);
+
+    expect(emailIndex).toBeGreaterThan(cdIndex);
+    expect(emailIndex).toBeGreaterThan(initIndex);
+    expect(emailIndex).toBeLessThan(commitIndex);
+  });
 });
