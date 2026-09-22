@@ -1,0 +1,142 @@
+name: Deploy GitHub Pages & Automated Releases
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+concurrency:
+  group: github-pages-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-deploy:
+    name: Build, Release & Deploy Multi-Version Pages
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run security audit
+        run: npm run audit
+
+      - name: Run TypeScript typecheck
+        run: npm run typecheck
+
+      - name: Run test suite
+        run: npm run test
+
+      - name: Determine release version
+        id: determine_version
+        run: node scripts/determine_release_version.mjs
+
+      - name: Run production build
+        env:
+          VITE_APP_VERSION: ${{ steps.determine_version.outputs.version }}
+        run: npm run build
+
+      - name: Package release archive
+        env:
+          TAG: ${{ steps.determine_version.outputs.version }}
+        run: |
+          cd dist
+          zip -r "../learning-logo-${TAG}.zip" .
+          cd ..
+
+      - name: Publish GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.determine_version.outputs.version }}
+        run: |
+          gh release create "${TAG}" "learning-logo-${TAG}.zip" \
+            --title "Release ${TAG}" \
+            --generate-notes
+
+      - name: Assemble Multi-Version Staging Tree
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CURRENT_VERSION: ${{ steps.determine_version.outputs.version }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          mkdir -p site_deploy
+
+          # Checkout gh-pages if branch exists
+          if git ls-remote --exit-code --heads origin gh-pages; then
+            git clone --branch gh-pages --depth 1 "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git" site_deploy_git
+            if [ -d site_deploy_git/releases ]; then
+              mkdir -p site_deploy/releases
+              cp -rn site_deploy_git/releases/* site_deploy/releases/ 2>/dev/null || true
+            fi
+            rm -rf site_deploy_git
+          fi
+
+          mkdir -p "site_deploy/releases/${CURRENT_VERSION}"
+          # Copy current build into versioned subdirectory
+          cp -r dist/* "site_deploy/releases/${CURRENT_VERSION}/"
+          # Copy current build into site root
+          cp -r dist/* site_deploy/
+
+          # Prevent GitHub Pages from ignoring leading underscores
+          touch site_deploy/.nojekyll
+
+          # Execute manifest generation and retention pruning (cap 20 releases)
+          SITE_DEPLOY_DIR=site_deploy CURRENT_VERSION="${CURRENT_VERSION}" node scripts/generate_versions_manifest.mjs
+
+      - name: Sync and Commit to gh-pages Branch
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.determine_version.outputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          mkdir -p gh_pages_work
+          cd gh_pages_work
+          git init -b gh-pages
+          git remote add origin "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}.git"
+          if git ls-remote --exit-code --heads origin gh-pages; then
+            git fetch --depth 1 origin gh-pages
+            git reset --soft origin/gh-pages
+          fi
+
+          rm -rf *
+          cp -r ../site_deploy/* .
+          cp ../site_deploy/.nojekyll . 2>/dev/null || touch .nojekyll
+
+          git add -A
+          if git status --porcelain | grep -q .; then
+            git commit -m "Deploy release ${TAG} to GitHub Pages [skip ci]"
+            git push -u origin gh-pages
+            echo "[PASS] Successfully synchronized and pushed to gh-pages branch"
+          else
+            echo "[PASS] No changes needed on gh-pages branch"
+          fi
+          cd ..
+
+      - name: Upload GitHub Pages Artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: site_deploy
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
