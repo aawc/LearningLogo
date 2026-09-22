@@ -156,19 +156,19 @@ echo "fs.inotify.max_user_watches=524288" | sudo tee /etc/sysctl.d/60-inotify.co
 sudo sysctl -p /etc/sysctl.d/60-inotify.conf
 ```
 
-### Cloudtop Web Proxy Host Blocking (`server.allowedHosts`)
+### Remote Workstation & Web Proxy Host Blocking (`server.allowedHosts`)
 
 #### Issue Description
-When accessing the Vite dev server through a Cloudtop web proxy URL (such as `https://<port>-<hash>.proxy.googlers.com` or `*.c.googlers.com`), Vite may reject incoming HTTP requests with:
+When accessing the Vite dev server through a remote development proxy or cloud workstation proxy URL (such as `https://<port>-<session-id>.proxy.example.com` or `https://<remote-proxy-host>`), Vite may reject incoming HTTP requests with:
 ```text
-Blocked request. This host ("...proxy.googlers.com") is not allowed. To allow this host, add "..." to server.allowedHosts in vite.config.js
+Blocked request. This host ("<remote-proxy-host>") is not allowed. To allow this host, add "<remote-proxy-host>" to server.allowedHosts in vite.config.js
 ```
 
 #### Defect Mechanism & Root Cause
-Vite enforces host header validation to mitigate DNS rebinding attacks. By default, Vite only permits requests targeting `localhost` and `127.0.0.1`. When accessing the dev server remotely through a Cloudtop web proxy or reverse proxy domain, the browser transmits the proxy hostname in the HTTP `Host` header. Without explicit host authorization, Vite rejects the request with HTTP 403.
+Vite enforces host header validation to mitigate DNS rebinding attacks. By default, Vite only permits requests targeting `localhost` and `127.0.0.1`. When accessing the dev server remotely through a cloud workstation web proxy or reverse proxy domain, the browser transmits the proxy hostname in the HTTP `Host` header. Without explicit host authorization, Vite rejects the request with HTTP 403.
 
 #### Repository-Level Solution
-In `vite.config.ts`, `server.allowedHosts` is set to `true` (permitting Cloudtop proxy subdomains such as `*.proxy.googlers.com` and `*.c.googlers.com` alongside localhost):
+In `vite.config.ts`, `server.allowedHosts` is set to `true` (permitting remote development proxy subdomains alongside localhost):
 
 ```typescript
   server: {
@@ -183,13 +183,13 @@ In `vite.config.ts`, `server.allowedHosts` is set to `true` (permitting Cloudtop
   },
 ```
 
-Alternatively, specific host domains can be explicitly listed (for example, `allowedHosts: ['.proxy.googlers.com', '.c.googlers.com', 'localhost', '127.0.0.1']`).
+Alternatively, specific host domains can be explicitly listed (for example, `allowedHosts: ['.proxy.example.com', 'localhost', '127.0.0.1']`).
 
-### Remote Cloudtop & Container Access
+### Remote Workstation & Container Access
 
-The dev server binds to `host: '0.0.0.0'` on port `5173` with `allowedHosts: true`. When developing on a remote cloudtop instance or container:
+The dev server binds to `host: '0.0.0.0'` on port `5173` with `allowedHosts: true`. When developing on a remote workstation or container:
 - The server is accessible locally via `http://localhost:5173`.
-- The server can be accessed through SSH port forwarding or Cloudtop web proxy URLs (`*.proxy.googlers.com`, `*.c.googlers.com`) without host blocking errors.
+- The server can be accessed through SSH port forwarding or remote web proxy URLs without host blocking errors.
 
 ---
 
