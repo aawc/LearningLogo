@@ -3,6 +3,24 @@ export function registerServiceWorker(onUpdateFound?: (waitingWorker?: ServiceWo
     return;
   }
 
+  if (!import.meta.env.PROD) {
+    if (typeof navigator.serviceWorker.getRegistrations === 'function') {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) => {
+          for (const reg of registrations) {
+            reg.unregister().catch((err) => {
+              console.warn('Failed to unregister service worker:', err);
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to get service worker registrations:', err);
+        });
+    }
+    return;
+  }
+
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('./sw.js')

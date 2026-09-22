@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { UpdateBanner } from '../../../src/pwa/update_banner.ts';
+import { registerServiceWorker } from '../../../src/pwa/register_sw.ts';
 
 describe('PWA Auto-Update Banner Component', () => {
   let container: HTMLElement;
@@ -9,9 +10,17 @@ describe('PWA Auto-Update Banner Component', () => {
     document.body.appendChild(container);
   });
 
-  it('mounts hidden update banner', () => {
+  afterEach(() => {
+    container.remove();
+    vi.restoreAllMocks();
+  });
+
+  it('mounts hidden update banner with accessible live region (F7)', () => {
     const banner = new UpdateBanner(container);
-    expect(container.querySelector('.pwa-update-toast')).not.toBeNull();
+    const toast = container.querySelector('.pwa-update-toast');
+    expect(toast).not.toBeNull();
+    expect(toast?.getAttribute('role')).toBe('status');
+    expect(toast?.getAttribute('aria-live')).toBe('polite');
     expect(banner.isVisible()).toBe(false);
   });
 
@@ -30,8 +39,97 @@ describe('PWA Auto-Update Banner Component', () => {
     expect(onReload).toHaveBeenCalled();
   });
 
-  it('passes waiting service worker to onUpdateFound callback', async () => {
-    const { registerServiceWorker } = await import('../../../src/pwa/register_sw.ts');
+  it('renders dismiss button and hides banner when clicked', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    const onDismiss = vi.fn();
+    banner.show(onReload, onDismiss);
+
+    const dismissBtn = container.querySelector('.update-dismiss-btn') as HTMLButtonElement;
+    expect(dismissBtn).not.toBeNull();
+    expect(dismissBtn.getAttribute('aria-label')).toBe('Dismiss update notification');
+
+    dismissBtn.click();
+    expect(banner.isVisible()).toBe(false);
+    expect(onDismiss).toHaveBeenCalled();
+  });
+});
+
+describe('Service Worker Registration Lifecycle', () => {
+  let originalEnv: boolean;
+
+  beforeEach(() => {
+    originalEnv = import.meta.env.PROD;
+  });
+
+  afterEach(() => {
+    (import.meta.env as { PROD: boolean }).PROD = originalEnv;
+    vi.restoreAllMocks();
+  });
+
+  it('unregisters lingering service workers in DEV mode', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = false;
+
+    const mockUnregister = vi.fn().mockResolvedValue(true);
+    const mockRegistration = {
+      unregister: mockUnregister,
+    };
+
+    const mockGetRegistrations = vi.fn().mockResolvedValue([mockRegistration]);
+    const mockRegister = vi.fn();
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        getRegistrations: mockGetRegistrations,
+        register: mockRegister,
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    registerServiceWorker();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockGetRegistrations).toHaveBeenCalled();
+    expect(mockUnregister).toHaveBeenCalled();
+    expect(mockRegister).not.toHaveBeenCalled();
+  });
+
+  it('safely catches unregistration failures in DEV mode (F4)', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = false;
+
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mockUnregister = vi.fn().mockRejectedValue(new Error('Unregister failed'));
+    const mockRegistration = {
+      unregister: mockUnregister,
+    };
+
+    const mockGetRegistrations = vi.fn().mockResolvedValue([mockRegistration]);
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        getRegistrations: mockGetRegistrations,
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    registerServiceWorker();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockUnregister).toHaveBeenCalled();
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Failed to unregister service worker:',
+      expect.any(Error)
+    );
+  });
+
+  it('registers service worker and passes waiting worker in PROD mode', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
 
     const mockWaitingWorker = {
       state: 'installed',
@@ -40,7 +138,7 @@ describe('PWA Auto-Update Banner Component', () => {
     };
 
     let loadHandler: (() => void) | null = null;
-    window.addEventListener = vi.fn((event, handler) => {
+    vi.spyOn(window, 'addEventListener').mockImplementation((event, handler) => {
       if (event === 'load') {
         loadHandler = handler as () => void;
       }
@@ -52,9 +150,10 @@ describe('PWA Auto-Update Banner Component', () => {
       addEventListener: vi.fn(),
     };
 
+    const mockRegister = vi.fn().mockResolvedValue(mockRegistration);
     Object.defineProperty(navigator, 'serviceWorker', {
       value: {
-        register: vi.fn().mockResolvedValue(mockRegistration),
+        register: mockRegister,
         controller: {},
         addEventListener: vi.fn(),
       },
@@ -65,14 +164,15 @@ describe('PWA Auto-Update Banner Component', () => {
     const onUpdateFound = vi.fn();
     registerServiceWorker(onUpdateFound);
 
+    expect(loadHandler).not.toBeNull();
     if (loadHandler) {
       (loadHandler as () => void)();
     }
 
-    // Await microtasks for register().then()
     await Promise.resolve();
     await Promise.resolve();
 
+    expect(mockRegister).toHaveBeenCalledWith('./sw.js');
     expect(onUpdateFound).toHaveBeenCalledWith(mockWaitingWorker);
   });
 });

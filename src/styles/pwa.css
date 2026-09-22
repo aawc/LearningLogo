@@ -19,6 +19,33 @@
   animation: slideUp 0.3s ease-out;
 }
 
+.update-dismiss-btn {
+  background: transparent;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 16px;
+  font-weight: bold;
+  cursor: pointer;
+  min-width: 48px;
+  min-height: 48px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  padding: 0;
+  transition: color var(--transition-fast), background-color var(--transition-fast);
+}
+
+.update-dismiss-btn:hover {
+  color: var(--color-text-main);
+  background-color: rgba(255, 255, 255, 0.08);
+}
+
+.update-dismiss-btn:focus-visible {
+  outline: 2px solid var(--color-primary-blue);
+  outline-offset: 2px;
+}
+
 @keyframes slideUp {
   from {
     opacity: 0;
