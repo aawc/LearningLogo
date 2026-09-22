@@ -51,12 +51,19 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
 
     originalLocation = window.location;
     const reloadMock = vi.fn();
+    let currentHash = '';
     Object.defineProperty(window, 'location', {
       value: {
         ...originalLocation,
         origin: 'http://localhost:5173',
         pathname: '/',
         href: 'http://localhost:5173/',
+        get hash() {
+          return currentHash;
+        },
+        set hash(val: string) {
+          currentHash = val ? (val.startsWith('#') ? val : '#' + val) : '';
+        },
         reload: reloadMock,
       },
       configurable: true,
@@ -212,4 +219,141 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
     expect(diagnosticsCode.textContent).not.toContain('Syntax Error');
     expect(diagnosticsCode.textContent).not.toContain('Last Runtime Error');
   });
+
+  it('mounts VersionSwitcher into header and flushes editor draft on version switch', () => {
+    initializeApp();
+
+    const versionSwitcher = document.querySelector('#header-container .version-switcher');
+    expect(versionSwitcher).not.toBeNull();
+
+    const trigger = document.querySelector('#header-container .version-trigger') as HTMLButtonElement;
+    expect(trigger).not.toBeNull();
+  });
+
+  it('updates window.location.hash with compressed editor code on version switch (F7)', async () => {
+    const mockManifest = {
+      latest: 'v1.1.0',
+      generatedAt: '2026-09-22T14:00:00Z',
+      versions: [
+        {
+          version: 'v1.1.0',
+          name: 'v1.1.0 (Latest)',
+          date: '2026-09-22T14:00:00Z',
+          path: '',
+          notesUrl: 'https://github.com/aawc/LearningLogo/releases/tag/v1.1.0',
+          isLatest: true
+        },
+        {
+          version: 'v1.0.0',
+          name: 'v1.0.0',
+          date: '2026-09-21T10:00:00Z',
+          path: 'releases/v1.0.0/',
+          notesUrl: 'https://github.com/aawc/LearningLogo/releases/tag/v1.0.0',
+          isLatest: false
+        }
+      ]
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (typeof url === 'string' && url.includes('versions.json')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => mockManifest
+        } as unknown as Response;
+      }
+      return { ok: false, status: 404 } as unknown as Response;
+    });
+
+    initializeApp();
+
+    const textarea = document.querySelector('.input-layer') as HTMLTextAreaElement;
+    expect(textarea).not.toBeNull();
+
+    // Modify editor content with draft code
+    const modifiedCode = 'FD 250 RT 45 FD 100';
+    textarea.value = modifiedCode;
+    textarea.dispatchEvent(new Event('input'));
+
+    // Wait for version switcher to load manifest
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const trigger = document.querySelector('#header-container .version-trigger') as HTMLButtonElement;
+    trigger.click();
+
+    const options = document.querySelectorAll('.version-option');
+    expect(options.length).toBeGreaterThan(0);
+
+    // Click target version option (v1.1.0, differing from current active version)
+    const targetOption = Array.from(options).find((opt) => opt.textContent?.includes('v1.1.0')) as HTMLElement;
+    expect(targetOption).toBeDefined();
+
+    targetOption.click();
+
+    // Assert that window.location.hash was updated to compressed code
+    const { compressCodeToHash } = await import('../../src/storage/url_share.ts');
+    const expectedHash = 'code=' + compressCodeToHash(modifiedCode);
+    expect(window.location.hash).toContain(expectedHash);
+  });
+
+  it('does not register service worker and cleans up lingering sub-scope registrations when running under /releases/ path', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    // Simulate running in historical release sub-scope
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...originalLocation,
+        origin: 'http://localhost:5173',
+        pathname: '/LearningLogo/releases/v1.0.0/',
+        href: 'http://localhost:5173/LearningLogo/releases/v1.0.0/',
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    let windowLoadHandler: (() => void) | null = null;
+    vi.spyOn(window, 'addEventListener').mockImplementation((event, handler) => {
+      if (event === 'load') {
+        windowLoadHandler = handler as () => void;
+      }
+    });
+
+    const mockSubReleaseUnregister = vi.fn().mockResolvedValue(true);
+    const mockRootUnregister = vi.fn().mockResolvedValue(true);
+    const mockRegister = vi.fn();
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        getRegistrations: vi.fn().mockResolvedValue([
+          {
+            scope: 'http://localhost:5173/LearningLogo/releases/v1.0.0/',
+            unregister: mockSubReleaseUnregister,
+          },
+          {
+            scope: 'http://localhost:5173/LearningLogo/',
+            unregister: mockRootUnregister,
+          },
+        ]),
+        register: mockRegister,
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    initializeApp();
+
+    if (windowLoadHandler) {
+      (windowLoadHandler as () => void)();
+    }
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockRegister).not.toHaveBeenCalled();
+    expect(mockSubReleaseUnregister).toHaveBeenCalled();
+    expect(mockRootUnregister).not.toHaveBeenCalled();
+  });
 });
+

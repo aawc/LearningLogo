@@ -9,6 +9,7 @@ import './styles/debugger.css';
 import './styles/modal.css';
 import './styles/pwa.css';
 import './styles/feedback.css';
+import './styles/version_switcher.css';
 
 import { LogoEditor } from './editor/editor.ts';
 import { TouchRibbon } from './editor/toolbar.ts';
@@ -33,6 +34,7 @@ import {
 import { UpdateBanner } from './pwa/update_banner.ts';
 import { registerServiceWorker } from './pwa/register_sw.ts';
 import { SplitLayout, createFeedbackButton } from './ui/layout.ts';
+import { VersionSwitcher } from './ui/version_switcher.ts';
 import { FeedbackModal } from './feedback/feedback_modal.ts';
 import { tokenize } from './interpreter/lexer.ts';
 import { parse } from './interpreter/parser.ts';
@@ -346,6 +348,18 @@ export function initializeApp(): void {
   actions.appendChild(shareBtn);
   actions.appendChild(exportBtn);
   actions.appendChild(importBtn);
+
+  new VersionSwitcher(actions, {
+    onBeforeSwitch: () => {
+      const currentCode = editor.getValue();
+      store.saveDraft(currentCode);
+      const hash = compressCodeToHash(currentCode);
+      if (isHashSafeLength(hash)) {
+        window.location.hash = 'code=' + hash;
+      }
+    }
+  });
+
   actions.appendChild(feedbackBtn);
   headerContainer.appendChild(brand);
   headerContainer.appendChild(actions);
