@@ -1,4 +1,5 @@
-const CACHE_NAME = 'learning-logo-v1.0.0';
+const APP_VERSION = '__APP_VERSION__';
+const CACHE_NAME = 'learning-logo-' + APP_VERSION;
 const PRECACHE_ASSETS = [
   './',
   './index.html',
@@ -18,7 +19,8 @@ self.addEventListener('activate', (event) => {
     caches.keys().then((keys) => {
       return Promise.all(
         keys.map((key) => {
-          if (key.startsWith('learning-logo-') && key !== CACHE_NAME) {
+          // Clean up legacy unversioned cache or older versions of learning-logo-*
+          if (key === 'learning-logo-cache' || (key.startsWith('learning-logo-') && key !== CACHE_NAME)) {
             return caches.delete(key);
           }
           return Promise.resolve(false);
@@ -30,6 +32,19 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+
+  const url = new URL(event.request.url);
+
+  // Bypass cache for versions.json so client always discovers fresh releases
+  if (url.pathname.endsWith('versions.json')) {
+    event.respondWith(fetch(event.request, { cache: 'no-cache' }));
+    return;
+  }
+
+  // Bypass /releases/ subpaths so historical releases are opened from live URLs only without SW interference
+  if (url.pathname.includes('/releases/')) {
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((cachedResponse) => {

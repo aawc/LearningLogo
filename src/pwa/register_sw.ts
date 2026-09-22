@@ -3,6 +3,41 @@ export function registerServiceWorker(onUpdateFound?: (waitingWorker?: ServiceWo
     return;
   }
 
+  // Guard: Historical releases under /releases/ operate as live URLs only.
+  // Never register a Service Worker for historical releases, and unregister any existing ones at this sub-scope.
+  if (window.location.pathname.includes('/releases/')) {
+    if (typeof navigator.serviceWorker.getRegistrations === 'function') {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) => {
+          for (const reg of registrations) {
+            if (!reg.scope || reg.scope.includes('/releases/')) {
+              reg.unregister().catch((err) => {
+                console.warn('Failed to unregister historical release service worker:', err);
+              });
+            }
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to get service worker registrations:', err);
+        });
+    } else if (typeof navigator.serviceWorker.getRegistration === 'function') {
+      navigator.serviceWorker
+        .getRegistration()
+        .then((reg) => {
+          if (reg && (!reg.scope || reg.scope.includes('/releases/'))) {
+            reg.unregister().catch((err) => {
+              console.warn('Failed to unregister historical release service worker:', err);
+            });
+          }
+        })
+        .catch((err) => {
+          console.warn('Failed to get service worker registration:', err);
+        });
+    }
+    return;
+  }
+
   if (!import.meta.env.PROD) {
     if (typeof navigator.serviceWorker.getRegistrations === 'function') {
       navigator.serviceWorker

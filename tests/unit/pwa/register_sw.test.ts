@@ -175,4 +175,114 @@ describe('Service Worker Registration Lifecycle', () => {
     expect(mockRegister).toHaveBeenCalledWith('./sw.js');
     expect(onUpdateFound).toHaveBeenCalledWith(mockWaitingWorker);
   });
+
+  it('does not register service worker and unregisters sub-scope worker when location is under /releases/', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...originalLocation,
+        pathname: '/LearningLogo/releases/v1.0.0/',
+        href: 'https://example.com/LearningLogo/releases/v1.0.0/',
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const mockSubReleaseUnregister = vi.fn().mockResolvedValue(true);
+      const mockRootUnregister = vi.fn().mockResolvedValue(true);
+
+      const mockRegistrations = [
+        {
+          scope: 'https://example.com/LearningLogo/releases/v1.0.0/',
+          unregister: mockSubReleaseUnregister,
+        },
+        {
+          scope: 'https://example.com/LearningLogo/',
+          unregister: mockRootUnregister,
+        },
+      ];
+
+      const mockRegister = vi.fn();
+      const mockGetRegistrations = vi.fn().mockResolvedValue(mockRegistrations);
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          register: mockRegister,
+          getRegistrations: mockGetRegistrations,
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      registerServiceWorker();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockRegister).not.toHaveBeenCalled();
+      expect(mockGetRegistrations).toHaveBeenCalled();
+      expect(mockSubReleaseUnregister).toHaveBeenCalled();
+      expect(mockRootUnregister).not.toHaveBeenCalled();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
+
+  it('safely catches unregistration failures for historical release service worker', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...originalLocation,
+        pathname: '/LearningLogo/releases/v1.0.0/',
+        href: 'https://example.com/LearningLogo/releases/v1.0.0/',
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const mockUnregister = vi.fn().mockRejectedValue(new Error('Sub-release unregister failed'));
+      const mockRegistration = {
+        scope: 'https://example.com/LearningLogo/releases/v1.0.0/',
+        unregister: mockUnregister,
+      };
+
+      Object.defineProperty(navigator, 'serviceWorker', {
+        value: {
+          register: vi.fn(),
+          getRegistrations: vi.fn().mockResolvedValue([mockRegistration]),
+        },
+        configurable: true,
+        writable: true,
+      });
+
+      registerServiceWorker();
+
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockUnregister).toHaveBeenCalled();
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('historical release'),
+        expect.any(Error)
+      );
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
 });
+
