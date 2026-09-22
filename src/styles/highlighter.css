@@ -1,0 +1,39 @@
+@import './tokens.css';
+
+.hl-keyword {
+  color: var(--syntax-keyword);
+  font-weight: 600;
+}
+
+.hl-command {
+  color: var(--syntax-command);
+  font-weight: 600;
+}
+
+.hl-number {
+  color: var(--syntax-number);
+}
+
+.hl-word {
+  color: var(--syntax-word);
+}
+
+.hl-var {
+  color: var(--syntax-var);
+}
+
+.hl-comment {
+  color: var(--syntax-comment);
+  font-style: italic;
+}
+
+.hl-bracket-matched {
+  color: var(--syntax-bracket);
+}
+
+.hl-bracket-unmatched {
+  color: var(--syntax-bracket-unmatch);
+  background-color: rgba(213, 94, 0, 0.2);
+  border-bottom: 2px solid var(--syntax-bracket-unmatch);
+  font-weight: bold;
+}

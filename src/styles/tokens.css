@@ -1,0 +1,47 @@
+:root {
+  /* Okabe-Ito Colorblind-Safe Theme Tokens */
+  --color-primary-blue: #0072B2;
+  --color-primary-orange: #D55E00;
+  --color-accent-sky: #56B4E9;
+  --color-accent-green: #009E73;
+  --color-accent-yellow: #F0E442;
+  --color-accent-purple: #CC79A7;
+  --color-accent-amber: #E69F00;
+  --color-black: #000000;
+  --color-white: #FFFFFF;
+
+  /* App Backgrounds & Surface Colors */
+  --color-bg-app: #121316;
+  --color-bg-pane: #1E1F24;
+  --color-bg-editor: #18191E;
+  --color-bg-gutter: #141518;
+  --color-bg-active-line: rgba(0, 114, 178, 0.25);
+  --color-bg-toolbar: #23252B;
+  --color-border: #33363F;
+
+  /* Text & Typography */
+  --color-text-main: #F3F4F6;
+  --color-text-muted: #9CA3AF;
+  --color-text-editor: #F8F9FA;
+  --font-mono: 'Fira Code', 'Cascadia Code', 'Consolas', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  /* Touch Targets for Mobile Accessibility */
+  --touch-target-size: 48px;
+  --touch-target-min: 44px;
+  --touch-target-margin: 6px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  /* Syntax Highlighting */
+  --syntax-keyword: #56B4E9;
+  --syntax-command: #F0E442;
+  --syntax-number: #009E73;
+  --syntax-word: #CC79A7;
+  --syntax-var: #E69F00;
+  --syntax-bracket: #F3F4F6;
+  --syntax-bracket-match: #0072B2;
+  --syntax-bracket-unmatch: #D55E00;
+  --syntax-comment: #767B85;
+}
