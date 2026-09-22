@@ -14,6 +14,7 @@ It runs entirely in modern browsers across low-cost touchscreen Chromebooks, sma
 - **Step Debugger & Tracer**: Interactive execution tracer supporting step-by-step evaluation, call stack inspection, and variable watch panels.
 - **Offline-First PWA**: Native Service Worker with Cache-First asset caching strategy and seamless update notifications.
 - **Zero-Friction Sharing**: URL-fragment code compression for instant project sharing and local storage persistence without accounts or servers.
+- **Multi-Version Switching & Automated Releases**: Automated GitHub Pages deployment pipeline preserving historical releases in `/releases/vX.Y.Z/` alongside root, complete with an accessible, keyboard-navigable in-app version switcher that maintains editor drafts and `#code=` hash fragments across version transitions.
 
 ---
 
@@ -74,6 +75,46 @@ npm install
   ```bash
   corepack npm run preview
   ```
+
+---
+
+## Automated Deployment, Multi-Version Persistence & Release Scheme
+
+The project implements an automated continuous deployment and release pipeline defined in `.github/workflows/deploy.yml`:
+
+### Pipeline Workflow Architecture
+1. **Trigger & Concurrency Lock**: Runs on every push to `main` with concurrency serialization (`group: github-pages-deploy`, `cancel-in-progress: false`) to eliminate race conditions and non-fast-forward push rejections.
+2. **Quality Gates**: Pre-deployment quality checks enforce four sequential gates:
+   - `[PASS]` Dependency security audit (`npm run audit`)
+   - `[PASS]` Strict TypeScript type checking (`npm run typecheck`)
+   - `[PASS]` Full Vitest unit & integration test suite (`npm run test`)
+   - `[PASS]` Production build validation (`npm run build`)
+3. **Automated Semver Determination (`scripts/determine_release_version.mjs`)**:
+   - Inspects Git commit history since the latest release tag using Conventional Commits:
+     - `BREAKING CHANGE:` or `!:` triggers a **major** bump (`vX.0.0`)
+     - `feat:` or `feat(...):` triggers a **minor** bump (`vX.Y.0`)
+     - `fix:`, `docs:`, `refactor:`, `chore:` triggers a **patch** bump (`vX.Y.Z`)
+   - Defaults to `v1.0.0` when no previous tags exist.
+   - Automatically avoids tag collisions by incrementing patch numbers until unique.
+4. **GitHub Release Publication**:
+   - Packages production artifacts into `learning-logo-$TAG.zip`.
+   - Creates a GitHub Release with auto-generated release notes via `gh release create`.
+5. **Multi-Version GitHub Pages Staging**:
+   - Clones the persistent `gh-pages` branch.
+   - Copies the current build into `releases/$TAG/` (preserving historical versions).
+   - Copies the current build to the site root `/` (serving the latest release at the canonical entry URL).
+   - Enforces a retention cap: retains the 20 most recent releases on Pages; historical releases remain archived in GitHub Releases.
+   - Generates and validates `versions.json` via `scripts/generate_versions_manifest.mjs`, copying it to site root and every release subdirectory.
+   - Adds `.nojekyll` to prevent Jekyll from skipping underscore-prefixed assets.
+   - Deploys the aggregated site tree using official GitHub Pages actions (`upload-pages-artifact@v3` and `deploy-pages@v4`).
+
+### Runtime Service Worker & Subdirectory URL Normalization
+- **PWA Scope & Cache Isolation**: Only the latest release at the site root operates as an offline PWA. Historical releases in `/releases/vX.Y.Z/` are designed for live online exploration without Service Worker overhead or cache pollution.
+  - The Service Worker cache name is versioned (`const CACHE_NAME = 'learning-logo-' + APP_VERSION;`).
+  - When operating at the site root, the Service Worker unconditionally bypasses requests for `/releases/` subpaths and `versions.json`.
+  - Service Worker registration is guarded in `src/pwa/register_sw.ts` so that pages loaded under `/releases/` do not register a Service Worker and unregister any lingering registrations at that sub-scope.
+- **Trailing Slash Normalization (`public/404.html`)**: Relative assets are built with `base: './'`. When a user requests a versioned subpath without a trailing slash (e.g. `/releases/v1.0.0`), `404.html` detects the missing slash and immediately executes `window.location.replace()` to append `/` before assets fail to load.
+- **Client-Side Version Switcher (`src/ui/version_switcher.ts`)**: An accessible dropdown in the application header displays the active version, shows colorblind-safe badges (`[Current]`, `[Latest]`, `[Offline]`), supports full keyboard navigation (Escape, Enter, Arrow keys), and preserves active code drafts and `#code=` hash fragments across version switches.
 
 ---
 

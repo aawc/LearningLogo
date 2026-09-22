@@ -43,11 +43,18 @@ LearningLogo/
 ├── PRD.md                  # Product Requirements Document
 ├── docs/
 │   ├── DESIGN.md           # In-depth technical architecture and subsystem contracts
-│   └── TEST_STRATEGY.md    # Testing philosophy, TDD rules, and verification plan
+│   ├── TEST_STRATEGY.md    # Testing philosophy, TDD rules, and verification plan
+│   └── plans/              # Architecture and implementation plans
 ├── public/
 │   ├── manifest.json       # PWA manifest
 │   ├── favicon.ico         # App icon
+│   ├── 404.html            # Trailing-slash URL normalizer for Pages subdirectories
+│   ├── sw.js               # Service Worker implementation (Cache-First & version-isolated)
 │   └── icons/              # Responsive PWA application icons
+├── scripts/
+│   ├── determine_release_version.mjs  # Conventional Commits semver calculation
+│   ├── generate_versions_manifest.mjs # Manifest generation & retention pruning
+│   └── pre_commit.sh                  # Local pre-commit verification gate
 ├── src/
 │   ├── index.html          # Application entry point
 │   ├── main.ts             # Application bootstrapping and wiring
@@ -79,12 +86,19 @@ LearningLogo/
 │   │   ├── project.ts      # Project schema, serialization, and deserialization
 │   │   ├── local_store.ts  # Browser localStorage / IndexedDB adapter
 │   │   └── url_share.ts    # Lossless URL-fragment code compression & sharing
+│   ├── ui/                 # UI components and layout managers
+│   │   ├── layout.ts       # Split pane and header layout management
+│   │   ├── version_switcher.ts       # In-app multi-version release switcher
+│   │   └── version_switcher_types.ts # Manifest schema validator & URL resolver
 │   └── pwa/                # Progressive Web App offline subsystem
 │       ├── register_sw.ts  # Service worker registration and update listener
-│       └── sw.ts           # Service worker implementation (Cache-First)
-└── tests/                  # Test suites matching src/ structure
-    ├── unit/               # Unit tests (Lexer, Parser, Runtime, Math, Turtle)
-    └── integration/        # Integration tests (Editor, Debugger, Storage, PWA)
+│       └── update_banner.ts # PWA update notification toast
+├── .github/workflows/
+│   ├── security.yml        # Security and quality verification workflow
+│   └── deploy.yml          # Automated release and multi-version Pages deploy
+└── tests/                  # Test suites matching src/ and scripts/ structure
+    ├── unit/               # Unit tests (Lexer, Parser, Runtime, Scripts, UI, PWA)
+    └── integration/        # Integration tests (Editor, Debugger, Storage, Lifecycle)
 ```
 
 ---
@@ -134,11 +148,17 @@ Design documents must focus on architecture, interface contracts, state machines
 During troubleshooting, code discovery, or diagnostics, explain the hypothesis being tested and the technical rationale *before* executing the command or tool call.
 
 ### 8. Source Control & Atomic Commit Standards
-- **Atomic Commits**: Group changes into small, single-purpose, independent commits with Conventional Commit prefixes (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`).
-- **Structured Commit Descriptions**: Articulate technical rationale, design decisions, background context, and applicable design document citations in the commit message body.
-- **Bug Fix Root Cause Explanation**: When fixing a bug, explain the verified technical root cause—identifying the defect mechanism rather than merely symptoms—both in dialogue and in the commit body.
+- **Strict Atomic Commit Mandate**: All commits in this repository **MUST** be atomic. Commits must be small, single-purpose, and independently coherent:
+  - Each commit must represent a single logical unit of change. Monolithic changesets grouping unrelated features, refactors, docs, CI workflows, or bugfixes into a single commit are strictly prohibited.
+  - Every individual commit must be self-contained and leave the repository in a fully working state: build (`npm run build`), strict type check (`npm run typecheck`), and full test suite (`npm run test`) must pass cleanly at every commit in git history.
+- **Conventional Commits & Structured Descriptions**: Each commit message must follow structured Conventional Commits format (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `ci:`, `chore:`) with:
+  - Concise, imperative subject line under 72 characters.
+  - Detailed body articulating technical rationale, architectural decisions, and background context.
+  - Explicit citations to applicable design documents or implementation plans (specifying exact file paths and line ranges, e.g. `Plan Citation: docs/plans/...:L1-L50`).
+- **Bug Fix Root Cause Explanation**: When fixing a bug or regression, the commit message body must explicitly explain the verified technical root cause—identifying the underlying defect mechanism and circumstances under which it manifested, rather than merely describing observable symptoms—before explaining how the fix remediates it.
+- **Pre-Commit Confirmation Policy**: Never execute `git commit` without prior explicit review and approval from the user for the proposed commit sequence, staged file manifests, and structured commit messages.
 - **Tag Hygiene**: Omit internal tracking tags (such as `TAG=agy`, `CONV=<id>`) from commit messages.
-- **Pre-Commit Verification**: Run dependency security audit (`npm run audit`), strict type checking (`npm run typecheck`), and full test suite verification (`npm run test`) before committing.
+- **Pre-Commit Quality Gate**: Run dependency security audit (`npm run audit`), strict type checking (`npm run typecheck`), and full test suite verification (`npm run test`) before proposing or making commits.
 
 ### 9. Self-Documentation Synchronization
 Keep `PROMPT.md`, `PRD.md`, `docs/DESIGN.md`, and `docs/TEST_STRATEGY.md` synchronized whenever repository structure, architectural decisions, rules, or core interfaces are modified.
@@ -160,3 +180,11 @@ Keep `PROMPT.md`, `PRD.md`, `docs/DESIGN.md`, and `docs/TEST_STRATEGY.md` synchr
   2. Strict type check (`npm run typecheck`)
   3. Full test suite execution (`npm run test`)
 - **Automated CI Enforcement (`.github/workflows/security.yml`)**: Continuous integration runs clean dependency install (`npm ci`), security audit, strict type checking, full test suite, and production bundle validation on all pushes and pull requests to `main`.
+
+### 12. Automated Deployment, Multi-Version Persistence & Release Governance
+- **Workflow & Concurrency**: The deployment workflow (`.github/workflows/deploy.yml`) runs on push to `main` with `concurrency: group: github-pages-deploy, cancel-in-progress: false` to guarantee queueing without mid-deploy race conditions.
+- **Conventional Commits Versioning (`scripts/determine_release_version.mjs`)**: Version increments are computed strictly from git history since the latest release tag (`BREAKING CHANGE:` -> major, `feat:` -> minor, other -> patch).
+- **Multi-Version Tree & Retention Cap**: Historical releases are preserved in `releases/vX.Y.Z/` on the `gh-pages` branch, with the latest release served at the root `/`. An automated retention cap retains the 20 most recent releases on GitHub Pages; all releases are archived perpetually in GitHub Releases.
+- **Service Worker & PWA Scope Boundary**: Only the latest release at the site root operates as an offline PWA. Historical releases in `releases/vX.Y.Z/` are opened from live URLs only without Service Worker overhead or cache pollution. The root Service Worker uses simple versioned cache naming (`const CACHE_NAME = 'learning-logo-' + APP_VERSION;`), unconditionally bypasses `/releases/` subpaths and `versions.json`, and `src/pwa/register_sw.ts` skips registration and unregisters lingering sub-scope registrations when running under `/releases/`.
+- **Subdirectory URL Normalization (`public/404.html`)**: The custom 404 handler automatically appends a trailing slash to release subpaths (`/releases/vX.Y.Z` -> `/releases/vX.Y.Z/`) to avoid relative asset resolution breakage.
+- **Client-Side Version Switcher (`src/ui/version_switcher.ts`)**: Built with colorblind-safe palettes (`#0072B2` vs `#D55E00`), full keyboard accessibility, draft persistence on switch, and offline resilience.
