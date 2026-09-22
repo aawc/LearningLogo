@@ -108,6 +108,10 @@ export class ReplConsole {
     this.onExecuteCallback = callback;
   }
 
+  getHistory(): readonly string[] {
+    return this.history;
+  }
+
   focus(): void {
     this.inputEl.focus();
   }

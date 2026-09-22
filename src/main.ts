@@ -8,6 +8,7 @@ import './styles/repl.css';
 import './styles/debugger.css';
 import './styles/modal.css';
 import './styles/pwa.css';
+import './styles/feedback.css';
 
 import { LogoEditor } from './editor/editor.ts';
 import { TouchRibbon } from './editor/toolbar.ts';
@@ -31,7 +32,8 @@ import {
 } from './storage/file_io.ts';
 import { UpdateBanner } from './pwa/update_banner.ts';
 import { registerServiceWorker } from './pwa/register_sw.ts';
-import { SplitLayout } from './ui/layout.ts';
+import { SplitLayout, createFeedbackButton } from './ui/layout.ts';
+import { FeedbackModal } from './feedback/feedback_modal.ts';
 import { tokenize } from './interpreter/lexer.ts';
 import { parse } from './interpreter/parser.ts';
 import { Environment } from './interpreter/environment.ts';
@@ -84,6 +86,15 @@ export function initializeApp(): void {
   const store = new LocalStore();
   const turtle = new Turtle();
   const stepper = new StepperController();
+  let lastError: { message: string; timestamp: number } | null = null;
+
+  window.addEventListener('error', (event) => {
+    lastError = { message: event.message || 'Window error', timestamp: Date.now() };
+  });
+  window.addEventListener('unhandledrejection', (event) => {
+    const reason = event.reason instanceof Error ? event.reason.message : String(event.reason);
+    lastError = { message: `Unhandled Promise: ${reason}`, timestamp: Date.now() };
+  });
 
   // 2. Editor & Input Setup
   const editor = new LogoEditor(editorContainer);
@@ -145,6 +156,7 @@ export function initializeApp(): void {
   });
 
   stepper.setOnFinish(() => {
+    lastError = null;
     renderCanvas();
     editor.clearExecutionHighlight();
   });
@@ -160,6 +172,7 @@ export function initializeApp(): void {
   stepper.setOnError((err) => {
     editor.clearExecutionHighlight();
     const msg = err instanceof Error ? err.message : String(err);
+    lastError = { message: msg, timestamp: Date.now() };
     alert(`Turtle Error: ${msg}`);
   });
 
@@ -176,6 +189,7 @@ export function initializeApp(): void {
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      lastError = { message: `Syntax Error: ${msg}`, timestamp: Date.now() };
       alert(`Syntax Error: ${msg}`);
       return false;
     }
@@ -233,6 +247,7 @@ export function initializeApp(): void {
       renderCanvas();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
+      lastError = { message: `Command Error: ${msg}`, timestamp: Date.now() };
       alert(`Command Error: ${msg}`);
     }
   });
@@ -244,6 +259,14 @@ export function initializeApp(): void {
     turtle.clearScreen();
     renderCanvas();
   });
+
+  const feedbackModal = new FeedbackModal(document.body, () => ({
+    editor,
+    turtle,
+    stepper,
+    repl,
+    lastError,
+  }));
 
   headerContainer.innerHTML = '';
   const brand = document.createElement('div');
@@ -317,10 +340,13 @@ export function initializeApp(): void {
     fileInput.click();
   });
 
+  const feedbackBtn = createFeedbackButton(() => feedbackModal.open());
+
   actions.appendChild(projectsBtn);
   actions.appendChild(shareBtn);
   actions.appendChild(exportBtn);
   actions.appendChild(importBtn);
+  actions.appendChild(feedbackBtn);
   headerContainer.appendChild(brand);
   headerContainer.appendChild(actions);
 
@@ -352,21 +378,35 @@ export function initializeApp(): void {
   // 10. PWA Offline Setup & Auto-Update Banner
   const updateBanner = new UpdateBanner(pwaBannerContainer);
   registerServiceWorker((waitingWorker) => {
-    updateBanner.show(() => {
-      if (waitingWorker) {
-        waitingWorker.postMessage({ action: 'SKIP_WAITING' });
+    updateBanner.show(
+      () => {
+        let fallbackTimer: number | null = null;
+        const handleReload = () => {
+          if (fallbackTimer !== null) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+          }
+          window.location.reload();
+        };
+
+        if (waitingWorker) {
+          waitingWorker.postMessage({ action: 'SKIP_WAITING' });
+        }
+        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.addEventListener(
+            'controllerchange',
+            () => {
+              handleReload();
+            },
+            { once: true }
+          );
+        }
+        fallbackTimer = window.setTimeout(() => handleReload(), 250);
+      },
+      () => {
+        updateBanner.hide();
       }
-      if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-        navigator.serviceWorker.addEventListener(
-          'controllerchange',
-          () => {
-            window.location.reload();
-          },
-          { once: true }
-        );
-      }
-      setTimeout(() => window.location.reload(), 500);
-    });
+    );
   });
 
   renderCanvas();

@@ -40,3 +40,16 @@ export class SplitLayout {
     return window.innerWidth < 768;
   }
 }
+
+export function createFeedbackButton(onClick?: () => void): HTMLButtonElement {
+  const btn = document.createElement('button');
+  btn.id = 'feedback-btn';
+  btn.className = 'dbg-btn feedback-btn';
+  btn.type = 'button';
+  btn.innerHTML = '<span aria-hidden="true">💬</span> Feedback';
+  btn.setAttribute('aria-label', 'Open feedback dialog');
+  if (onClick) {
+    btn.addEventListener('click', onClick);
+  }
+  return btn;
+}

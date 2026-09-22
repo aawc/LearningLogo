@@ -68,4 +68,18 @@ describe('Immediate Command REPL Console', () => {
 
     expect(onExecute).not.toHaveBeenCalled();
   });
+
+  it('exposes command history via getHistory()', () => {
+    const repl = new ReplConsole(container);
+    repl.setOnExecute(vi.fn());
+
+    const input = container.querySelector('.repl-input') as HTMLInputElement;
+    input.value = 'FD 100';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    input.value = 'RT 90';
+    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+
+    expect(repl.getHistory()).toEqual(['FD 100', 'RT 90']);
+  });
 });
