@@ -142,3 +142,14 @@ During troubleshooting, code discovery, or diagnostics, explain the hypothesis b
 
 ### 9. Self-Documentation Synchronization
 Keep `PROMPT.md`, `PRD.md`, `docs/DESIGN.md`, and `docs/TEST_STRATEGY.md` synchronized whenever repository structure, architectural decisions, rules, or core interfaces are modified.
+
+### 10. Linux & Cloudtop Development Gotchas (File Watcher ENOSPC & Networking)
+- **Inotify Watcher Exhaustion**: On Linux / cloudtop workstations running concurrent IDEs, language servers, and tooling, the OS `fs.inotify.max_user_watches` table can easily be exhausted, causing tools like Vite to fail during startup with `Error: ENOSPC: System limit for number of file watchers reached`.
+- **Project Watcher Configuration**: Never rely solely on default OS inotify watcher registration in development tooling. In `vite.config.ts`, `server.watch` must specify:
+  - `usePolling: true` (bypasses kernel inotify table allocation without root privileges)
+  - `interval: 200` (balances fast HMR updates with minimal CPU load)
+  - `ignored: ['**/dist/**', '**/.git/**', '**/node_modules/**']` (eliminates polling churn over massive non-source trees)
+- **Host Sysctl Alternative**: For developers with root access wishing to raise the OS inotify limit globally:
+  `sudo sysctl -w fs.inotify.max_user_watches=524288`
+- **Cloudtop Remote Binding & Web Proxy Access**: The Vite server must bind to `host: '0.0.0.0'` on `port: 5173` to allow frictionless local port forwarding and browser connectivity across remote workstations and containers. Additionally, Vite enforces host header validation to guard against DNS rebinding; requests arriving through Cloudtop web proxy URLs (`*.proxy.googlers.com`, `*.c.googlers.com`) are rejected with `Blocked request. This host ("...proxy.googlers.com") is not allowed. To allow this host, add "..." to server.allowedHosts in vite.config.js` unless `server.allowedHosts` is configured. In `vite.config.ts`, `server.allowedHosts: true` (or an explicit list `['.proxy.googlers.com', '.c.googlers.com', 'localhost', '127.0.0.1']`) must be configured to permit Cloudtop web proxy access.
+

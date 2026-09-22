@@ -12,7 +12,13 @@ export default defineConfig({
     },
   },
   server: {
-    port: 3000,
-    host: true,
+    host: '0.0.0.0',
+    port: 5173,
+    allowedHosts: true,
+    watch: {
+      usePolling: true,
+      interval: 200,
+      ignored: ['**/dist/**', '**/.git/**', '**/node_modules/**'],
+    },
   },
 });
