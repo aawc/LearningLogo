@@ -138,7 +138,7 @@ During troubleshooting, code discovery, or diagnostics, explain the hypothesis b
 - **Structured Commit Descriptions**: Articulate technical rationale, design decisions, background context, and applicable design document citations in the commit message body.
 - **Bug Fix Root Cause Explanation**: When fixing a bug, explain the verified technical root cause—identifying the defect mechanism rather than merely symptoms—both in dialogue and in the commit body.
 - **Tag Hygiene**: Omit internal tracking tags (such as `TAG=agy`, `CONV=<id>`) from commit messages.
-- **Pre-Commit Verification**: Run type checking and test suite verification before committing.
+- **Pre-Commit Verification**: Run dependency security audit (`npm run audit`), strict type checking (`npm run typecheck`), and full test suite verification (`npm run test`) before committing.
 
 ### 9. Self-Documentation Synchronization
 Keep `PROMPT.md`, `PRD.md`, `docs/DESIGN.md`, and `docs/TEST_STRATEGY.md` synchronized whenever repository structure, architectural decisions, rules, or core interfaces are modified.
@@ -153,3 +153,10 @@ Keep `PROMPT.md`, `PRD.md`, `docs/DESIGN.md`, and `docs/TEST_STRATEGY.md` synchr
   `sudo sysctl -w fs.inotify.max_user_watches=524288`
 - **Cloudtop Remote Binding & Web Proxy Access**: The Vite server must bind to `host: '0.0.0.0'` on `port: 5173` to allow frictionless local port forwarding and browser connectivity across remote workstations and containers. Additionally, Vite enforces host header validation to guard against DNS rebinding; requests arriving through Cloudtop web proxy URLs (`*.proxy.googlers.com`, `*.c.googlers.com`) are rejected with `Blocked request. This host ("...proxy.googlers.com") is not allowed. To allow this host, add "..." to server.allowedHosts in vite.config.js` unless `server.allowedHosts` is configured. In `vite.config.ts`, `server.allowedHosts: true` (or an explicit list `['.proxy.googlers.com', '.c.googlers.com', 'localhost', '127.0.0.1']`) must be configured to permit Cloudtop web proxy access.
 
+### 11. Dependency Vulnerability Audits & Pre-Commit Quality Gates
+- **Zero Moderate+ Vulnerability Standard**: All direct and transitive dependencies must maintain zero vulnerabilities at or above CVSS moderate severity (`npm audit --audit-level=moderate`).
+- **Pre-Commit Gate (`scripts/pre_commit.sh`)**: Local pre-commit verification executes three sequential gates before allowing commits:
+  1. Dependency audit (`npm run audit`)
+  2. Strict type check (`npm run typecheck`)
+  3. Full test suite execution (`npm run test`)
+- **Automated CI Enforcement (`.github/workflows/security.yml`)**: Continuous integration runs clean dependency install (`npm ci`), security audit, strict type checking, full test suite, and production bundle validation on all pushes and pull requests to `main`.

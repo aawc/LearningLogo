@@ -20,8 +20,8 @@ It runs entirely in modern browsers across low-cost touchscreen Chromebooks, sma
 ## Tech Stack
 
 - **Language**: TypeScript 5.x (Strict ES2022+)
-- **Build Tool**: Vite 5.x
-- **Testing**: Vitest 2.x
+- **Build Tool**: Vite 6.x
+- **Testing**: Vitest 4.x
 - **Architecture**: Modular vanilla TypeScript, zero heavy framework runtime bloat (< 150 KB gzipped production bundle)
 
 ---
@@ -30,7 +30,7 @@ It runs entirely in modern browsers across low-cost touchscreen Chromebooks, sma
 
 ### Prerequisites
 
-- Node.js (v18+ or v20+)
+- Node.js (v18+ or v20+ / v22+)
 - Corepack (`corepack enable`) or npm
 
 ### Installation
@@ -42,6 +42,12 @@ npm install
 ```
 
 ### Development Scripts
+
+- **Audit Dependencies for Security Vulnerabilities**:
+  ```bash
+  corepack npm run audit
+  ```
+  Runs `npm audit --audit-level=moderate` to catch moderate or higher CVE advisories.
 
 - **Start Dev Server**:
   ```bash
@@ -68,6 +74,25 @@ npm install
   ```bash
   corepack npm run preview
   ```
+
+---
+
+## Pre-Commit Security & Quality Gate
+
+A local pre-commit verification gate is provided in `scripts/pre_commit.sh` that validates changes before committing:
+1. **Gate 1**: Dependency security audit (`npm run audit`)
+2. **Gate 2**: Strict TypeScript typechecking (`npm run typecheck`)
+3. **Gate 3**: Full Vitest test suite (`npm run test`)
+
+To install or update the pre-commit hook in your local Git repository:
+```bash
+cp scripts/pre_commit.sh .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+```
+Or create a symlink:
+```bash
+ln -sf ../../scripts/pre_commit.sh .git/hooks/pre-commit
+```
 
 ---
 

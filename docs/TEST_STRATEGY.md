@@ -127,7 +127,14 @@ All pull requests and commits are verified through the following sequential qual
 
 | Step | Command | Verification Requirement | Status Indicator |
 | :--- | :--- | :--- | :--- |
+| **0. Dependency Audit** | `npm audit --audit-level=moderate` | Zero moderate or higher vulnerabilities | `[PASS]` |
 | **1. Type Check** | `tsc --noEmit` | Zero TypeScript errors with strict mode | `[PASS]` |
 | **2. Unit Tests** | `vitest run tests/unit` | 100% test pass rate | `[PASS]` |
 | **3. Integration Tests** | `vitest run tests/integration` | 100% test pass rate | `[PASS]` |
 | **4. Bundle Size** | `vite build` | Production bundle $< 150\text{ KB}$ gzipped | `[PASS]` |
+
+### 6.1 Dependency Vulnerability Audit Policy
+Dependencies must be continuously audited against known Common Vulnerabilities and Exposures (CVEs) using `npm audit`.
+- **Pre-Commit Enforcement**: The pre-commit hook (`scripts/pre_commit.sh`) executes `npm run audit` locally before allowing commits.
+- **CI Pipeline Gate**: GitHub Actions (`.github/workflows/security.yml`) executes `npm run audit` on all pushes and pull requests targeting `main`.
+- **Threshold**: Zero moderate, high, or critical vulnerabilities are permitted. Any advisory meeting or exceeding CVSS moderate severity blocks the build.
