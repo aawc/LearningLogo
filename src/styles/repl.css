@@ -1,0 +1,41 @@
+@import './tokens.css';
+
+.repl-console {
+  width: 100%;
+  background-color: var(--color-bg-pane);
+  border-top: 1px solid var(--color-border);
+  padding: 6px 12px;
+}
+
+.repl-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: var(--color-bg-editor);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 4px 8px;
+}
+
+.repl-prompt {
+  font-family: var(--font-mono);
+  font-size: 16px;
+  font-weight: bold;
+  color: var(--color-primary-blue);
+  user-select: none;
+}
+
+.repl-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--color-text-editor);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  height: 36px;
+}
+
+.repl-input::placeholder {
+  color: var(--color-text-muted);
+}
