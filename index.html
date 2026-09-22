@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="description" content="100% Free, Offline-First Educational Logo Programming Environment for Kids" />
+    <meta name="theme-color" content="#0072B2" />
+    <link rel="manifest" href="manifest.json" />
+    <title>LearningLogo - Turtle Graphics</title>
+  </head>
+  <body>
+    <div id="app">
+      <header id="header-container" class="app-header" role="banner"></header>
+      <div id="workspace-container" class="workspace">
+        <section id="editor-pane" class="pane" aria-label="Code Editor Pane">
+          <div id="toolbar-container" class="touch-ribbon" role="toolbar" aria-label="Logo command ribbon"></div>
+          <div id="editor-container" class="twin-editor"></div>
+          <div id="repl-container" class="repl-console" role="region" aria-label="Interactive REPL console"></div>
+        </section>
+        <section id="canvas-pane" class="pane" aria-label="Graphics Output Pane">
+          <div id="debugger-container" class="debugger-panel" role="region" aria-label="Debugger controls and inspector"></div>
+          <div id="canvas-container" class="canvas-viewport" role="region" aria-label="Turtle canvas viewport"></div>
+        </section>
+      </div>
+      <aside id="pwa-banner" class="pwa-update-toast" role="alert" aria-live="polite" hidden></aside>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
