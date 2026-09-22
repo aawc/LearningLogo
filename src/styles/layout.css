@@ -1,0 +1,96 @@
+@import './tokens.css';
+
+.app-header {
+  height: 56px;
+  background-color: var(--color-bg-pane);
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  user-select: none;
+}
+
+.brand-title {
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--color-text-main);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.brand-turtle {
+  font-size: 1.3rem;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workspace {
+  flex: 1;
+  display: flex;
+  width: 100%;
+  height: calc(100vh - 56px);
+  overflow: hidden;
+}
+
+.pane {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+}
+
+#editor-pane {
+  flex: 1;
+  min-width: 320px;
+  border-right: 1px solid var(--color-border);
+}
+
+#canvas-pane {
+  flex: 1;
+  min-width: 320px;
+  background-color: var(--color-white);
+  position: relative;
+}
+
+.canvas-viewport {
+  flex: 1;
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #FFFFFF;
+}
+
+.canvas-viewport canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Mobile Responsive Layout (< 768px) */
+@media (max-width: 767px) {
+  .workspace {
+    flex-direction: column;
+  }
+
+  #editor-pane {
+    height: 50%;
+    min-height: 250px;
+    border-right: none;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  #canvas-pane {
+    height: 50%;
+    min-height: 250px;
+  }
+}
