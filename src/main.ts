@@ -147,7 +147,10 @@ export function initializeApp(): void {
   debuggerContainer.appendChild(controlsDiv);
   debuggerContainer.appendChild(inspectorDiv);
 
-  new DebuggerControls(controlsDiv, stepper);
+  new DebuggerControls(controlsDiv, stepper, () => {
+    turtle.clearScreen();
+    renderCanvas();
+  });
   const inspector = new InspectorPanel(inspectorDiv);
 
   // 5. Wire Stepper Callbacks
@@ -166,8 +169,6 @@ export function initializeApp(): void {
   stepper.setOnStop(() => {
     editor.clearExecutionHighlight();
     inspector.clear();
-    turtle.home();
-    turtle.clearScreen();
     renderCanvas();
   });
 

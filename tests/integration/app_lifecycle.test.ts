@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { initializeApp } from '../../src/main.ts';
+import { UpdateBanner } from '../../src/pwa/update_banner.ts';
 
 describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
   let domContainer: HTMLDivElement;
@@ -11,7 +12,7 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
     domContainer = document.createElement('div');
     domContainer.innerHTML = `
       <div id="header-container"></div>
-      <div id="pwa-banner"></div>
+      <aside id="pwa-banner" role="status" aria-live="polite" aria-atomic="true" aria-label="Application updates"></aside>
       <div id="workspace-container">
         <div id="editor-pane">
           <div id="toolbar-container"></div>
@@ -356,7 +357,28 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
     expect(mockRootUnregister).not.toHaveBeenCalled();
   });
 
-  it('leaves #pwa-banner host sanitized and toast hidden on fresh start without controller', async () => {
+  it('leaves #pwa-banner host sanitized and toast hidden on fresh start without controller in PROD (F4)', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockWaitingWorker = {
+      state: 'installed',
+      postMessage: vi.fn(),
+      addEventListener: vi.fn(),
+    };
+
+    let windowLoadHandler: (() => void) | null = null;
+    vi.spyOn(window, 'addEventListener').mockImplementation((event, handler) => {
+      if (event === 'load') {
+        windowLoadHandler = handler as () => void;
+      }
+    });
+
+    const mockRegistration = {
+      waiting: mockWaitingWorker,
+      installing: null,
+      addEventListener: vi.fn(),
+    };
+
     // Setup host element with legacy attributes as originally defined in index.html
     const pwaBanner = document.getElementById('pwa-banner') as HTMLElement;
     pwaBanner.className = 'pwa-update-toast';
@@ -367,7 +389,7 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
     Object.defineProperty(navigator, 'serviceWorker', {
       value: {
         getRegistrations: vi.fn().mockResolvedValue([]),
-        register: vi.fn().mockResolvedValue({ waiting: null, addEventListener: vi.fn() }),
+        register: vi.fn().mockResolvedValue(mockRegistration),
         addEventListener: vi.fn(),
         controller: null,
       },
@@ -375,7 +397,23 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
       writable: true,
     });
 
+    let banner: UpdateBanner | null = null;
+    const origBuildDOM = (UpdateBanner.prototype as unknown as { buildDOM: () => void }).buildDOM;
+    vi.spyOn(UpdateBanner.prototype as any, 'buildDOM').mockImplementation(function (this: UpdateBanner) {
+      banner = this;
+      return origBuildDOM.call(this);
+    });
+
     initializeApp();
+
+    // Trigger window load to simulate full PROD SW registration lifecycle
+    expect(windowLoadHandler).not.toBeNull();
+    if (windowLoadHandler) {
+      (windowLoadHandler as () => void)();
+    }
+
+    await Promise.resolve();
+    await Promise.resolve();
 
     // The host element should be sanitized
     expect(pwaBanner.classList.contains('pwa-update-toast')).toBe(false);
@@ -386,6 +424,10 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
     expect(toast).not.toBeNull();
     expect(toast.hidden).toBe(true);
     expect(toast.style.display).toBe('none');
+
+    // Verify banner.isVisible() remains false end-to-end when controller is null
+    expect(banner).not.toBeNull();
+    expect(banner!.isVisible()).toBe(false);
   });
 });
 

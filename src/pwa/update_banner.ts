@@ -9,11 +9,20 @@ export class UpdateBanner {
 
   constructor(container: HTMLElement) {
     this.container = container;
+    (this.container as HTMLElement & { __updateBanner?: UpdateBanner }).__updateBanner = this;
     this.buildDOM();
   }
 
   private handleKeydown = (event: KeyboardEvent): void => {
     if (event.key === 'Escape') {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') &&
+        !this.toastEl.contains(activeEl)
+      ) {
+        return;
+      }
       this.hide();
       if (this.onDismissCallback) {
         this.onDismissCallback();
@@ -33,12 +42,19 @@ export class UpdateBanner {
   private buildDOM(): void {
     this.container.classList.remove('pwa-update-toast');
     this.container.removeAttribute('hidden');
+    if (!this.container.hasAttribute('role')) {
+      this.container.setAttribute('role', 'status');
+    }
+    if (!this.container.hasAttribute('aria-live')) {
+      this.container.setAttribute('aria-live', 'polite');
+    }
+    if (!this.container.hasAttribute('aria-atomic')) {
+      this.container.setAttribute('aria-atomic', 'true');
+    }
     this.container.innerHTML = '';
 
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'pwa-update-toast';
-    this.toastEl.setAttribute('role', 'status');
-    this.toastEl.setAttribute('aria-live', 'polite');
     this.toastEl.hidden = true;
     this.toastEl.style.display = 'none';
 
@@ -52,6 +68,11 @@ export class UpdateBanner {
     this.reloadBtn.textContent = 'Update Now';
 
     this.reloadBtn.addEventListener('click', () => {
+      if (this.reloadBtn.disabled) {
+        return;
+      }
+      this.reloadBtn.disabled = true;
+      this.reloadBtn.textContent = 'Updating...';
       if (this.onReloadCallback) {
         this.onReloadCallback();
       } else {
@@ -81,6 +102,8 @@ export class UpdateBanner {
   show(onReload: () => void, onDismiss?: () => void): void {
     this.onReloadCallback = onReload;
     this.onDismissCallback = onDismiss ?? null;
+    this.reloadBtn.disabled = false;
+    this.reloadBtn.textContent = 'Update Now';
     this.toastEl.hidden = false;
     this.toastEl.style.display = 'flex';
     this.registerKeydownListener();
@@ -92,7 +115,19 @@ export class UpdateBanner {
     this.unregisterKeydownListener();
   }
 
+  destroy(): void {
+    this.hide();
+    this.toastEl.remove();
+    delete (this.container as HTMLElement & { __updateBanner?: UpdateBanner }).__updateBanner;
+    this.onReloadCallback = null;
+    this.onDismissCallback = null;
+  }
+
   isVisible(): boolean {
-    return !this.toastEl.hidden && this.toastEl.style.display !== 'none';
+    return (
+      this.toastEl.parentElement !== null &&
+      !this.toastEl.hidden &&
+      this.toastEl.style.display !== 'none'
+    );
   }
 }

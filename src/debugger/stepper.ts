@@ -160,8 +160,14 @@ export class StepperController {
     try {
       const res = this.generator.next();
       if (res.done) {
-        this.stop();
-        if (this.onFinishCallback) this.onFinishCallback();
+        this.clearTimer();
+        this.generator = null;
+        this.callStack = ['Global'];
+        this.lastStep = null;
+        this.stateMachine.transition(DebuggerState.IDLE);
+        if (this.onFinishCallback) {
+          this.onFinishCallback();
+        }
         return false;
       }
 

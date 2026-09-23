@@ -4,16 +4,19 @@ import type { StepperController } from './stepper.ts';
 export class DebuggerControls {
   private container: HTMLElement;
   private stepper: StepperController;
+  private onClear?: () => void;
   private runBtn!: HTMLButtonElement;
   private pauseBtn!: HTMLButtonElement;
   private stepBtn!: HTMLButtonElement;
   private stepOverBtn!: HTMLButtonElement;
   private stopBtn!: HTMLButtonElement;
+  private clearBtn!: HTMLButtonElement;
   private speedInput!: HTMLInputElement;
 
-  constructor(container: HTMLElement, stepper: StepperController) {
+  constructor(container: HTMLElement, stepper: StepperController, onClear?: () => void) {
     this.container = container;
     this.stepper = stepper;
+    this.onClear = onClear;
     this.render();
     this.setupListeners();
     this.updateButtonStates(this.stepper.getState());
@@ -56,6 +59,12 @@ export class DebuggerControls {
     this.stopBtn.innerHTML = '<span class="dbg-label">[STOP]</span> ⏹';
     this.stopBtn.setAttribute('aria-label', 'Stop program and reset turtle');
 
+    this.clearBtn = document.createElement('button');
+    this.clearBtn.type = 'button';
+    this.clearBtn.className = 'dbg-btn btn-clear';
+    this.clearBtn.innerHTML = '<span class="dbg-label">[CLEAR]</span> 🗑️';
+    this.clearBtn.setAttribute('aria-label', 'Clear canvas');
+
     const speedWrapper = document.createElement('div');
     speedWrapper.className = 'speed-control';
     const speedLabel = document.createElement('label');
@@ -79,6 +88,7 @@ export class DebuggerControls {
     wrapper.appendChild(this.stepBtn);
     wrapper.appendChild(this.stepOverBtn);
     wrapper.appendChild(this.stopBtn);
+    wrapper.appendChild(this.clearBtn);
     wrapper.appendChild(speedWrapper);
 
     this.container.appendChild(wrapper);
@@ -105,6 +115,12 @@ export class DebuggerControls {
       this.stepper.stop();
     });
 
+    this.clearBtn.addEventListener('click', () => {
+      if (this.onClear) {
+        this.onClear();
+      }
+    });
+
     this.speedInput.addEventListener('input', () => {
       this.stepper.setSpeed(Number(this.speedInput.value));
     });
@@ -122,6 +138,7 @@ export class DebuggerControls {
         this.stepOverBtn.disabled = false;
         this.pauseBtn.disabled = true;
         this.stopBtn.disabled = true;
+        this.clearBtn.disabled = false;
         this.runBtn.innerHTML = '<span class="dbg-label">[RUN]</span> ▶';
         break;
 
@@ -131,6 +148,7 @@ export class DebuggerControls {
         this.stepOverBtn.disabled = true;
         this.pauseBtn.disabled = false;
         this.stopBtn.disabled = false;
+        this.clearBtn.disabled = true;
         break;
 
       case DebuggerState.PAUSED:
@@ -139,6 +157,7 @@ export class DebuggerControls {
         this.stepOverBtn.disabled = false;
         this.pauseBtn.disabled = true;
         this.stopBtn.disabled = false;
+        this.clearBtn.disabled = false;
         this.runBtn.innerHTML = '<span class="dbg-label">[RESUME]</span> ▶';
         break;
 
@@ -148,6 +167,7 @@ export class DebuggerControls {
         this.stepOverBtn.disabled = true;
         this.pauseBtn.disabled = true;
         this.stopBtn.disabled = false;
+        this.clearBtn.disabled = true;
         break;
     }
   }

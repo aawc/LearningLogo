@@ -113,4 +113,28 @@ END
     // Square was executed: turtle completed 4 segments of square
     expect(turtle.getPathSegments().length).toBe(4);
   });
+  it('does not invoke onStopCallback when execution finishes naturally [EXPECTED TO FAIL INITIALLY]', () => {
+    const stepper = new StepperController();
+    const ast = parse(tokenize('FD 10'));
+    const env = new Environment();
+    const turtle = new Turtle();
+
+    const mockStop = vi.fn();
+    const mockFinish = vi.fn();
+    stepper.setOnStop(mockStop);
+    stepper.setOnFinish(mockFinish);
+
+    stepper.load(ast, env, turtle);
+    mockStop.mockClear();
+
+    // Exhaust generator commands completely
+    let status = true;
+    while(status) {
+       stepper.stepInto();
+       if (stepper.getState() === DebuggerState.IDLE) break;
+    }
+
+    expect(mockFinish).toHaveBeenCalled();
+    expect(mockStop).not.toHaveBeenCalled();
+  });
 });

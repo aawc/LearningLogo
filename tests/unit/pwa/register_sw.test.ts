@@ -15,12 +15,15 @@ describe('PWA Auto-Update Banner Component', () => {
     vi.restoreAllMocks();
   });
 
-  it('mounts hidden update banner with accessible live region (F7)', () => {
+  it('mounts hidden update banner with accessible live region in host container (F1)', () => {
     const banner = new UpdateBanner(container);
     const toast = container.querySelector('.pwa-update-toast');
     expect(toast).not.toBeNull();
-    expect(toast?.getAttribute('role')).toBe('status');
-    expect(toast?.getAttribute('aria-live')).toBe('polite');
+    expect(toast?.hasAttribute('role')).toBe(false);
+    expect(toast?.hasAttribute('aria-live')).toBe(false);
+    expect(container.getAttribute('role')).toBe('status');
+    expect(container.getAttribute('aria-live')).toBe('polite');
+    expect(container.getAttribute('aria-atomic')).toBe('true');
     expect(banner.isVisible()).toBe(false);
   });
 
@@ -67,6 +70,112 @@ describe('PWA Auto-Update Banner Component', () => {
     // Verify listener is cleaned up and does not trigger callback multiple times
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
     expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not dismiss banner when Escape is pressed while an input outside the toast is focused (F2)', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    const onDismiss = vi.fn();
+    banner.show(onReload, onDismiss);
+
+    const input = document.createElement('input');
+    document.body.appendChild(input);
+    input.focus();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(banner.isVisible()).toBe(true);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    input.remove();
+  });
+
+  it('does not dismiss banner when Escape is pressed while a textarea outside the toast is focused (F2)', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    const onDismiss = vi.fn();
+    banner.show(onReload, onDismiss);
+
+    const textarea = document.createElement('textarea');
+    document.body.appendChild(textarea);
+    textarea.focus();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(banner.isVisible()).toBe(true);
+    expect(onDismiss).not.toHaveBeenCalled();
+
+    textarea.remove();
+  });
+
+  it('dismisses banner when Escape is pressed while focus is inside the toast element (F2)', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    const onDismiss = vi.fn();
+    banner.show(onReload, onDismiss);
+
+    const reloadBtn = container.querySelector('.update-reload-btn') as HTMLButtonElement;
+    reloadBtn.focus();
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(banner.isVisible()).toBe(false);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('destroys banner, unregisters keydown listener, and removes toast from DOM (F3)', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    const onDismiss = vi.fn();
+    banner.show(onReload, onDismiss);
+
+    expect(banner.isVisible()).toBe(true);
+    expect(container.querySelector('.pwa-update-toast')).not.toBeNull();
+
+    banner.destroy();
+
+    expect(banner.isVisible()).toBe(false);
+    expect(container.querySelector('.pwa-update-toast')).toBeNull();
+
+    // Verify keydown listener is unregistered and does not call onDismiss
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(onDismiss).not.toHaveBeenCalled();
+  });
+
+  it('disables reload button and changes text to Updating... on click to prevent race conditions (F5)', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    banner.show(onReload);
+
+    const reloadBtn = container.querySelector('.update-reload-btn') as HTMLButtonElement;
+    expect(reloadBtn.disabled).toBe(false);
+    expect(reloadBtn.textContent).toBe('Update Now');
+
+    reloadBtn.click();
+
+    expect(reloadBtn.disabled).toBe(true);
+    expect(reloadBtn.textContent).toBe('Updating...');
+    expect(onReload).toHaveBeenCalledTimes(1);
+
+    // Clicking again while disabled must not trigger callback again
+    reloadBtn.click();
+    expect(onReload).toHaveBeenCalledTimes(1);
+  });
+
+  it('resets reload button state when banner is re-shown', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    banner.show(onReload);
+
+    const reloadBtn = container.querySelector('.update-reload-btn') as HTMLButtonElement;
+    reloadBtn.click();
+    expect(reloadBtn.disabled).toBe(true);
+    expect(reloadBtn.textContent).toBe('Updating...');
+
+    banner.hide();
+    banner.show(onReload);
+    expect(reloadBtn.disabled).toBe(false);
+    expect(reloadBtn.textContent).toBe('Update Now');
   });
 
   it('logs a warning and does not crash when reload button is clicked without a registered callback', () => {
