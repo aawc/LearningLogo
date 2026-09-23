@@ -1,19 +1,27 @@
 {
-  "latest": "v1.1.0",
-  "generatedAt": "2026-09-23T04:17:33.672Z",
+  "latest": "v1.1.1",
+  "generatedAt": "2026-09-23T07:50:11.762Z",
   "versions": [
     {
-      "version": "v1.1.0",
-      "name": "v1.1.0 (Latest)",
-      "date": "2026-09-23T04:17:33.671Z",
+      "version": "v1.1.1",
+      "name": "v1.1.1 (Latest)",
+      "date": "2026-09-23T07:50:11.762Z",
       "path": "",
-      "notesUrl": "https://github.com/aawc/LearningLogo/releases/tag/v1.1.0",
+      "notesUrl": "https://github.com/aawc/LearningLogo/releases/tag/v1.1.1",
       "isLatest": true
+    },
+    {
+      "version": "v1.1.0",
+      "name": "v1.1.0",
+      "date": "2026-09-23T07:50:11.762Z",
+      "path": "releases/v1.1.0/",
+      "notesUrl": "https://github.com/aawc/LearningLogo/releases/tag/v1.1.0",
+      "isLatest": false
     },
     {
       "version": "v1.0.4",
       "name": "v1.0.4",
-      "date": "2026-09-23T04:17:33.672Z",
+      "date": "2026-09-23T07:50:11.762Z",
       "path": "releases/v1.0.4/",
       "notesUrl": "https://github.com/aawc/LearningLogo/releases/tag/v1.0.4",
       "isLatest": false
@@ -21,7 +29,7 @@
     {
       "version": "v1.0.3",
       "name": "v1.0.3",
-      "date": "2026-09-23T04:17:33.672Z",
+      "date": "2026-09-23T07:50:11.762Z",
       "path": "releases/v1.0.3/",
       "notesUrl": "https://github.com/aawc/LearningLogo/releases/tag/v1.0.3",
       "isLatest": false
@@ -29,7 +37,7 @@
     {
       "version": "v1.0.2",
       "name": "v1.0.2",
-      "date": "2026-09-23T04:17:33.672Z",
+      "date": "2026-09-23T07:50:11.762Z",
       "path": "releases/v1.0.2/",
       "notesUrl": "https://github.com/aawc/LearningLogo/releases/tag/v1.0.2",
       "isLatest": false
@@ -37,7 +45,7 @@
     {
       "version": "v1.0.1",
       "name": "v1.0.1",
-      "date": "2026-09-23T04:17:33.672Z",
+      "date": "2026-09-23T07:50:11.762Z",
       "path": "releases/v1.0.1/",
       "notesUrl": "https://github.com/aawc/LearningLogo/releases/tag/v1.0.1",
       "isLatest": false
