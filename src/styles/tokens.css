@@ -34,6 +34,11 @@
   --radius-md: 10px;
   --radius-lg: 16px;
 
+  /* Debugger & Inspector Dimensions */
+  --debugger-controls-height: 64px;
+  --inspector-height: 120px;
+  --inspector-mobile-height: 90px;
+
   /* Syntax Highlighting */
   --syntax-keyword: #56B4E9;
   --syntax-command: #F0E442;
