@@ -355,5 +355,37 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
     expect(mockSubReleaseUnregister).toHaveBeenCalled();
     expect(mockRootUnregister).not.toHaveBeenCalled();
   });
+
+  it('leaves #pwa-banner host sanitized and toast hidden on fresh start without controller', async () => {
+    // Setup host element with legacy attributes as originally defined in index.html
+    const pwaBanner = document.getElementById('pwa-banner') as HTMLElement;
+    pwaBanner.className = 'pwa-update-toast';
+    pwaBanner.setAttribute('hidden', '');
+    pwaBanner.setAttribute('role', 'alert');
+
+    // Fresh start: navigator.serviceWorker.controller is null
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        getRegistrations: vi.fn().mockResolvedValue([]),
+        register: vi.fn().mockResolvedValue({ waiting: null, addEventListener: vi.fn() }),
+        addEventListener: vi.fn(),
+        controller: null,
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    initializeApp();
+
+    // The host element should be sanitized
+    expect(pwaBanner.classList.contains('pwa-update-toast')).toBe(false);
+    expect(pwaBanner.hasAttribute('hidden')).toBe(false);
+
+    // The child toast element should be hidden
+    const toast = pwaBanner.querySelector('.pwa-update-toast') as HTMLElement;
+    expect(toast).not.toBeNull();
+    expect(toast.hidden).toBe(true);
+    expect(toast.style.display).toBe('none');
+  });
 });
 

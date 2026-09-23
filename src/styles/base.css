@@ -47,3 +47,7 @@ textarea:focus-visible {
   color: var(--color-primary-orange);
   font-weight: bold;
 }
+
+[hidden] {
+  display: none !important;
+}

@@ -60,7 +60,7 @@ export function registerServiceWorker(onUpdateFound?: (waitingWorker?: ServiceWo
     navigator.serviceWorker
       .register('./sw.js')
       .then((registration) => {
-        if (registration.waiting && onUpdateFound) {
+        if (registration.waiting && navigator.serviceWorker.controller && onUpdateFound) {
           onUpdateFound(registration.waiting);
         }
 

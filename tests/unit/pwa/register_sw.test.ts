@@ -24,6 +24,63 @@ describe('PWA Auto-Update Banner Component', () => {
     expect(banner.isVisible()).toBe(false);
   });
 
+  it('ensures toast style.display is "none" when hidden and "flex" when shown', () => {
+    const banner = new UpdateBanner(container);
+    const toast = container.querySelector('.pwa-update-toast') as HTMLElement;
+    expect(toast).not.toBeNull();
+    expect(toast.style.display).toBe('none');
+    expect(banner.isVisible()).toBe(false);
+
+    banner.show(vi.fn());
+    expect(toast.style.display).toBe('flex');
+    expect(banner.isVisible()).toBe(true);
+
+    banner.hide();
+    expect(toast.style.display).toBe('none');
+    expect(banner.isVisible()).toBe(false);
+  });
+
+  it('defensively sanitizes legacy host container attributes and classes on initialization', () => {
+    container.className = 'pwa-update-toast extra-class';
+    container.setAttribute('hidden', '');
+
+    new UpdateBanner(container);
+
+    expect(container.classList.contains('pwa-update-toast')).toBe(false);
+    expect(container.classList.contains('extra-class')).toBe(true);
+    expect(container.hasAttribute('hidden')).toBe(false);
+  });
+
+  it('dismisses banner and calls onDismissCallback when Escape key is pressed', () => {
+    const banner = new UpdateBanner(container);
+    const onReload = vi.fn();
+    const onDismiss = vi.fn();
+    banner.show(onReload, onDismiss);
+
+    expect(banner.isVisible()).toBe(true);
+
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+
+    expect(banner.isVisible()).toBe(false);
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+
+    // Verify listener is cleaned up and does not trigger callback multiple times
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+    expect(onDismiss).toHaveBeenCalledTimes(1);
+  });
+
+  it('logs a warning and does not crash when reload button is clicked without a registered callback', () => {
+    new UpdateBanner(container);
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const reloadBtn = container.querySelector('.update-reload-btn') as HTMLButtonElement;
+    expect(reloadBtn).not.toBeNull();
+
+    expect(() => reloadBtn.click()).not.toThrow();
+    expect(warnSpy).toHaveBeenCalledWith(
+      expect.stringContaining('No reload callback registered')
+    );
+  });
+
   it('shows update banner with update message and reload button', () => {
     const banner = new UpdateBanner(container);
     const onReload = vi.fn();
@@ -174,6 +231,54 @@ describe('Service Worker Registration Lifecycle', () => {
 
     expect(mockRegister).toHaveBeenCalledWith('./sw.js');
     expect(onUpdateFound).toHaveBeenCalledWith(mockWaitingWorker);
+  });
+
+  it('does not trigger onUpdateFound when registration.waiting is present but controller is null (fresh start)', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockWaitingWorker = {
+      state: 'installed',
+      postMessage: vi.fn(),
+      addEventListener: vi.fn(),
+    };
+
+    let loadHandler: (() => void) | null = null;
+    vi.spyOn(window, 'addEventListener').mockImplementation((event, handler) => {
+      if (event === 'load') {
+        loadHandler = handler as () => void;
+      }
+    });
+
+    const mockRegistration = {
+      waiting: mockWaitingWorker,
+      installing: null,
+      addEventListener: vi.fn(),
+    };
+
+    const mockRegister = vi.fn().mockResolvedValue(mockRegistration);
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: mockRegister,
+        controller: null, // Fresh start: no controller yet!
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const onUpdateFound = vi.fn();
+    registerServiceWorker(onUpdateFound);
+
+    expect(loadHandler).not.toBeNull();
+    if (loadHandler) {
+      (loadHandler as () => void)();
+    }
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockRegister).toHaveBeenCalledWith('./sw.js');
+    expect(onUpdateFound).not.toHaveBeenCalled();
   });
 
   it('does not register service worker and unregisters sub-scope worker when location is under /releases/', async () => {

@@ -12,13 +12,35 @@ export class UpdateBanner {
     this.buildDOM();
   }
 
+  private handleKeydown = (event: KeyboardEvent): void => {
+    if (event.key === 'Escape') {
+      this.hide();
+      if (this.onDismissCallback) {
+        this.onDismissCallback();
+      }
+    }
+  };
+
+  private registerKeydownListener(): void {
+    window.removeEventListener('keydown', this.handleKeydown);
+    window.addEventListener('keydown', this.handleKeydown);
+  }
+
+  private unregisterKeydownListener(): void {
+    window.removeEventListener('keydown', this.handleKeydown);
+  }
+
   private buildDOM(): void {
+    this.container.classList.remove('pwa-update-toast');
+    this.container.removeAttribute('hidden');
     this.container.innerHTML = '';
+
     this.toastEl = document.createElement('div');
     this.toastEl.className = 'pwa-update-toast';
     this.toastEl.setAttribute('role', 'status');
     this.toastEl.setAttribute('aria-live', 'polite');
     this.toastEl.hidden = true;
+    this.toastEl.style.display = 'none';
 
     this.messageEl = document.createElement('span');
     this.messageEl.className = 'update-msg';
@@ -32,6 +54,8 @@ export class UpdateBanner {
     this.reloadBtn.addEventListener('click', () => {
       if (this.onReloadCallback) {
         this.onReloadCallback();
+      } else {
+        console.warn('No reload callback registered for PWA update banner.');
       }
     });
 
@@ -58,13 +82,17 @@ export class UpdateBanner {
     this.onReloadCallback = onReload;
     this.onDismissCallback = onDismiss ?? null;
     this.toastEl.hidden = false;
+    this.toastEl.style.display = 'flex';
+    this.registerKeydownListener();
   }
 
   hide(): void {
     this.toastEl.hidden = true;
+    this.toastEl.style.display = 'none';
+    this.unregisterKeydownListener();
   }
 
   isVisible(): boolean {
-    return !this.toastEl.hidden;
+    return !this.toastEl.hidden && this.toastEl.style.display !== 'none';
   }
 }
