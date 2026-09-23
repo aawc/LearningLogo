@@ -82,6 +82,21 @@ npm install
 
 The project implements an automated continuous deployment and release pipeline defined in `.github/workflows/deploy.yml`:
 
+### Repository Prerequisite: GitHub Pages Source Configuration
+
+**Important:** For the automated deployment pipeline to function, the repository must have its GitHub Pages deployment source configured to **GitHub Actions**:
+
+1. In the GitHub repository, navigate to **Settings** -> **Pages** (under "Code and automation").
+2. Under **Build and deployment** -> **Source**, select **GitHub Actions** from the dropdown menu (do **not** select "Deploy from a branch" or leave it unconfigured).
+3. Once set to **GitHub Actions**, GitHub provisions the Pages deployment API endpoint (`POST /repos/{owner}/{repo}/pages/deployments`) and the `github-pages` deployment environment.
+
+**Dual-Deployment Architecture Rationale:**
+The deployment workflow intentionally operates a dual-target architecture:
+- **`actions/deploy-pages@v4` (Pages Deployment)**: Deploys the aggregated, multi-version site artifact directly to GitHub Pages CDN using GitHub Actions OIDC authentication and the `github-pages` environment.
+- **`gh-pages` Branch (Cross-Run Storage)**: Synchronizes the aggregated release tree to the `gh-pages` branch. Because GitHub Actions runners are ephemeral, the `gh-pages` branch serves as the durable storage mechanism that preserves historical releases in `/releases/vX.Y.Z/` across successive pipeline runs.
+
+If the repository's Pages source is left set to "Deploy from a branch" (targeting `gh-pages`), the workflow's final step (`actions/deploy-pages@v4`) will fail with `Error: HttpError: Not Found` (HTTP 404) because GitHub disables the Actions Pages deployment API for repositories configured for branch-based deployment.
+
 ### Pipeline Workflow Architecture
 1. **Trigger & Concurrency Lock**: Runs on every push to `main` with concurrency serialization (`group: github-pages-deploy`, `cancel-in-progress: false`) to eliminate race conditions and non-fast-forward push rejections.
 2. **Quality Gates**: Pre-deployment quality checks enforce four sequential gates:
@@ -232,8 +247,39 @@ The dev server binds to `host: '0.0.0.0'` on port `5173` with `allowedHosts: tru
 - The server is accessible locally via `http://localhost:5173`.
 - The server can be accessed through SSH port forwarding or remote web proxy URLs without host blocking errors.
 
+### GitHub Pages Deployment Fails with `HttpError: Not Found`
+
+#### Issue Description
+During the `Deploy to GitHub Pages` step (`actions/deploy-pages@v4`) in `.github/workflows/deploy.yml`, the workflow fails with:
+```text
+Creating Pages deployment with payload:
+{
+	"artifact_id": ...,
+	"pages_build_version": "...",
+	"oidc_token": "***"
+}
+Error: Creating Pages deployment failed
+Error: HttpError: Not Found
+    at /home/runner/work/_actions/actions/deploy-pages/v4/node_modules/@octokit/request/dist-node/index.js:124:1
+```
+
+#### Defect Mechanism & Root Cause
+GitHub's REST API endpoint for creating Pages deployments (`POST /repos/{owner}/{repo}/pages/deployments`) is only provisioned when the repository's Pages source is configured to **GitHub Actions**.
+
+By default or on existing repositories with Pages configured, GitHub sets the Pages source to **Deploy from a branch** (or leaves Pages uninitialized). Even though `.github/workflows/deploy.yml` possesses valid OIDC tokens (`id-token: write`), proper permissions (`pages: write`), and specifies `environment: { name: 'github-pages' }`, GitHub returns HTTP 404 `Not Found` because the repository's deployment backend is not set to `workflow`.
+
+Additionally, because the pipeline pushes to the `gh-pages` branch for historical version retention, administrators may be led to configure Pages source to "Deploy from a branch (gh-pages)". This misconfiguration causes `actions/deploy-pages@v4` to fail with HTTP 404.
+
+#### Remediation
+1. Go to the repository on GitHub.
+2. Click **Settings** -> **Pages** (in the left navigation under "Code and automation").
+3. Under **Build and deployment**, locate the **Source** dropdown.
+4. Select **GitHub Actions** (switch away from "Deploy from a branch").
+5. Re-run the failed deployment workflow (or push a new commit to `main`). The deployment will complete with `[PASS]`.
+
 ---
 
 ## License
 
 This project is licensed under the terms of the MIT License. See `LICENSE` for details.
+

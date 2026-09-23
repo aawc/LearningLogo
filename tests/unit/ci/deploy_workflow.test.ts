@@ -19,6 +19,10 @@ describe('GitHub Actions Deployment Workflow (.github/workflows/deploy.yml)', ()
     expect(content).toContain('pages: write');
     expect(content).toContain('id-token: write');
 
+    // Deployment environment (required for OIDC token verification & Pages API deployment creation)
+    expect(content).toMatch(/environment:\s*\n\s*name:\s*github-pages/);
+    expect(content).toContain('url: ${{ steps.deployment.outputs.page_url }}');
+
     // Full git history checkout
     expect(content).toMatch(/fetch-depth:\s*0/);
 
@@ -103,4 +107,25 @@ describe('GitHub Actions Deployment Workflow (.github/workflows/deploy.yml)', ()
     expect(emailIndex).toBeGreaterThan(initIndex);
     expect(emailIndex).toBeLessThan(commitIndex);
   });
+
+  it('verifies deployment job specifies github-pages environment and page_url for OIDC verification', () => {
+    const content = readFileSync(workflowPath, 'utf-8');
+
+    // Find the build-and-deploy job declaration
+    const jobMatch = content.match(/build-and-deploy:[\s\S]*?(?=\n\s*steps:)/);
+    expect(jobMatch).not.toBeNull();
+    const jobHeader = jobMatch![0]!;
+
+    // Must declare github-pages environment to enable OIDC authentication for actions/deploy-pages
+    expect(jobHeader).toMatch(/environment:\s*\n\s*name:\s*github-pages/);
+    expect(jobHeader).toMatch(/url:\s*\${{\s*steps\.deployment\.outputs\.page_url\s*}}/);
+
+    // Verify actions/deploy-pages step has id: deployment so page_url matches
+    const deployStepMatch = content.match(/- name: Deploy to GitHub Pages[\s\S]*?(?=- name:|$)/);
+    expect(deployStepMatch).not.toBeNull();
+    const deployStep = deployStepMatch![0]!;
+    expect(deployStep).toContain('id: deployment');
+    expect(deployStep).toContain('uses: actions/deploy-pages@v4');
+  });
 });
+
