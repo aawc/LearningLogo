@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { DebuggerControls } from '../../../src/debugger/controls.ts';
 import { InspectorPanel } from '../../../src/debugger/inspector.ts';
 import { StepperController } from '../../../src/debugger/stepper.ts';
@@ -11,11 +11,16 @@ describe('Debugger Controls & Inspector UI Components', () => {
   let stepper: StepperController;
 
   beforeEach(() => {
+    document.body.innerHTML = '';
     controlsContainer = document.createElement('div');
     inspectorContainer = document.createElement('div');
     document.body.appendChild(controlsContainer);
     document.body.appendChild(inspectorContainer);
     stepper = new StepperController();
+  });
+
+  afterEach(() => {
+    document.body.innerHTML = '';
   });
 
   it('mounts control buttons with accessible labels', () => {
@@ -68,4 +73,25 @@ describe('Debugger Controls & Inspector UI Components', () => {
     expect(frames[0]?.textContent).toContain('Global');
     expect(frames[1]?.textContent).toContain('SQUARE');
   });
+
+  it('applies stack-frame-active to the top-most call stack frame and scrolls to it', () => {
+    const inspector = new InspectorPanel(inspectorContainer);
+    const env = new Environment();
+
+    inspector.update(env, ['Global', 'SQUAREDSQUARE:L8', 'SQUARE:L2']);
+
+    const frames = inspectorContainer.querySelectorAll('.stack-frame');
+    expect(frames.length).toBe(3);
+    expect(frames[0]?.classList.contains('stack-frame-active')).toBe(false);
+    expect(frames[1]?.classList.contains('stack-frame-active')).toBe(false);
+    expect(frames[2]?.classList.contains('stack-frame-active')).toBe(true);
+
+    const stackList = inspectorContainer.querySelector('.stack-list') as HTMLElement;
+    expect(stackList).not.toBeNull();
+    // Simulate scrollHeight to test auto-scrolling
+    Object.defineProperty(stackList, 'scrollHeight', { value: 240, configurable: true });
+    inspector.update(env, ['Global', 'SQUAREDSQUARE:L8', 'SQUARE:L2', 'STEP:L3']);
+    expect(stackList.scrollTop).toBe(240);
+  });
 });
+

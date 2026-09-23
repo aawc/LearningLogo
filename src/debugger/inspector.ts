@@ -43,12 +43,19 @@ export class InspectorPanel {
   update(env: Environment, callStack: string[] = ['Global']): void {
     // Render Call Stack
     this.stackListEl.innerHTML = '';
-    for (const frame of callStack) {
+    const lastIndex = callStack.length - 1;
+    for (let i = 0; i < callStack.length; i++) {
+      const frame = callStack[i];
+      if (frame === undefined) continue;
       const li = document.createElement('li');
       li.className = 'stack-frame';
+      if (i === lastIndex) {
+        li.classList.add('stack-frame-active');
+      }
       li.textContent = frame;
       this.stackListEl.appendChild(li);
     }
+    this.stackListEl.scrollTop = this.stackListEl.scrollHeight;
 
     // Render Variables
     this.varTableEl.innerHTML = '';
