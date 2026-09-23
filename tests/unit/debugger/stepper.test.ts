@@ -138,3 +138,4 @@ END
     expect(mockStop).not.toHaveBeenCalled();
   });
 });
+

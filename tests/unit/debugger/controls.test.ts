@@ -37,3 +37,4 @@ describe('DebuggerControls UI', () => {
     expect(clearBtn.disabled).toBe(false);
   });
 });
+
