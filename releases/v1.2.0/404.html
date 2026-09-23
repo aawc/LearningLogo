@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Page Not Found - LearningLogo</title>
+  <script>
+    // GitHub Pages trailing-slash normalizer for multi-version release subdirectories (F2, F8)
+    (function() {
+      var pathname = window.location.pathname.replace(/^\/+/, '/');
+      if (pathname.includes('/releases/') && /\/releases\/[^/]+$/.test(pathname)) {
+        window.location.replace(window.location.origin + pathname + '/' + window.location.search + window.location.hash);
+        return;
+      }
+
+      // Dynamically compute repository root base path for return link (F8)
+      var rootPath = '/';
+      var releasesIdx = pathname.indexOf('/releases/');
+      if (releasesIdx !== -1) {
+        rootPath = pathname.substring(0, releasesIdx + 1);
+      }
+      var updateHomeLink = function() {
+        var el = document.getElementById('home-link');
+        if (el) el.setAttribute('href', rootPath);
+      };
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateHomeLink);
+      } else {
+        updateHomeLink();
+      }
+    })();
+  </script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #121316;
+      color: #e6edf3;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+      text-align: center;
+    }
+    h1 {
+      font-size: 2rem;
+      margin-bottom: 0.5rem;
+      color: #D55E00;
+    }
+    p {
+      color: #8b949e;
+      margin-bottom: 1.5rem;
+    }
+    a {
+      color: #0072B2;
+      text-decoration: none;
+      border: 1px solid #0072B2;
+      padding: 0.5rem 1rem;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    a:hover {
+      background-color: rgba(0, 114, 178, 0.15);
+    }
+  </style>
+</head>
+<body>
+  <h1>404 - Page Not Found</h1>
+  <p>The requested page or release was not found.</p>
+  <a id="home-link" href="./">Return to LearningLogo</a>
+</body>
+</html>
