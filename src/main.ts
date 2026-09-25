@@ -37,7 +37,7 @@ import {
   importFromFile,
 } from './storage/file_io.ts';
 import { UpdateBanner } from './pwa/update_banner.ts';
-import { registerServiceWorker } from './pwa/register_sw.ts';
+import { registerServiceWorker, type ServiceWorkerHandle } from './pwa/register_sw.ts';
 import { SplitLayout, createFeedbackButton } from './ui/layout.ts';
 import { VersionSwitcher } from './ui/version_switcher.ts';
 import { SplitExportButton } from './ui/split_export_button.ts';
@@ -439,6 +439,48 @@ export function initializeApp(): void {
 
   actions.appendChild(importBtn);
 
+  // 10. PWA Offline Setup & Auto-Update Banner
+  const updateBanner = new UpdateBanner(pwaBannerContainer);
+
+  let swHandle: ServiceWorkerHandle | void;
+
+  const showUpdateBanner = (waitingWorker?: ServiceWorker) => {
+    updateBanner.show(
+      () => {
+        let fallbackTimer: number | null = null;
+        const handleReload = () => {
+          if (fallbackTimer !== null) {
+            clearTimeout(fallbackTimer);
+            fallbackTimer = null;
+          }
+          window.location.reload();
+        };
+
+        const targetWorker = waitingWorker || swHandle?.getRegistration()?.waiting;
+        if (targetWorker) {
+          targetWorker.postMessage({ action: 'SKIP_WAITING' });
+        }
+        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
+          navigator.serviceWorker.addEventListener(
+            'controllerchange',
+            () => {
+              handleReload();
+            },
+            { once: true }
+          );
+        }
+        fallbackTimer = window.setTimeout(() => handleReload(), 250);
+      },
+      () => {
+        updateBanner.hide();
+      }
+    );
+  };
+
+  swHandle = registerServiceWorker((waitingWorker) => {
+    showUpdateBanner(waitingWorker);
+  });
+
   new VersionSwitcher(actions, {
     onBeforeSwitch: () => {
       const currentCode = editor.getValue();
@@ -447,7 +489,22 @@ export function initializeApp(): void {
       if (isHashSafeLength(hash)) {
         window.location.hash = 'code=' + hash;
       }
-    }
+    },
+    onUpdateAvailable: () => {
+      if (swHandle && typeof swHandle.update === 'function') {
+        swHandle.update();
+      } else if (
+        typeof navigator !== 'undefined' &&
+        'serviceWorker' in navigator &&
+        typeof navigator.serviceWorker.getRegistration === 'function'
+      ) {
+        navigator.serviceWorker
+          .getRegistration()
+          .then((reg) => reg?.update?.())
+          .catch(() => {});
+      }
+      showUpdateBanner();
+    },
   });
 
   actions.appendChild(feedbackBtn);
@@ -486,40 +543,6 @@ export function initializeApp(): void {
       e.preventDefault();
       handleSave();
     }
-  });
-
-  // 10. PWA Offline Setup & Auto-Update Banner
-  const updateBanner = new UpdateBanner(pwaBannerContainer);
-  registerServiceWorker((waitingWorker) => {
-    updateBanner.show(
-      () => {
-        let fallbackTimer: number | null = null;
-        const handleReload = () => {
-          if (fallbackTimer !== null) {
-            clearTimeout(fallbackTimer);
-            fallbackTimer = null;
-          }
-          window.location.reload();
-        };
-
-        if (waitingWorker) {
-          waitingWorker.postMessage({ action: 'SKIP_WAITING' });
-        }
-        if (typeof navigator !== 'undefined' && 'serviceWorker' in navigator) {
-          navigator.serviceWorker.addEventListener(
-            'controllerchange',
-            () => {
-              handleReload();
-            },
-            { once: true }
-          );
-        }
-        fallbackTimer = window.setTimeout(() => handleReload(), 250);
-      },
-      () => {
-        updateBanner.hide();
-      }
-    );
   });
 
   renderCanvas();

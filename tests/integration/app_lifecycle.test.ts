@@ -429,5 +429,131 @@ describe('App Lifecycle & Error Invalidation Integration (F5, F6)', () => {
     expect(banner).not.toBeNull();
     expect(banner!.isVisible()).toBe(false);
   });
+
+  it('displays update banner and triggers sw update when VersionSwitcher discovers newer release from versions.json', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        getRegistrations: vi.fn().mockResolvedValue([]),
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        addEventListener: vi.fn(),
+        controller: {},
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const mockManifest = {
+      latest: 'v1.1.0',
+      generatedAt: '2026-09-25T12:00:00Z',
+      versions: [
+        {
+          version: 'v1.1.0',
+          name: 'v1.1.0 (Latest)',
+          date: '2026-09-25',
+          path: '',
+          notesUrl: '',
+          isLatest: true,
+        },
+        {
+          version: 'v1.0.0',
+          name: 'v1.0.0',
+          date: '2026-09-20',
+          path: 'releases/v1.0.0/',
+          notesUrl: '',
+          isLatest: false,
+        },
+      ],
+    };
+
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async (url) => {
+      if (typeof url === 'string' && url.includes('versions.json')) {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => mockManifest,
+        } as unknown as Response;
+      }
+      return { ok: false, status: 404 } as unknown as Response;
+    });
+
+    initializeApp();
+
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    const toast = document.querySelector('.pwa-update-toast') as HTMLElement;
+    expect(toast).not.toBeNull();
+    expect(toast.style.display).toBe('flex');
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it('triggers registration.update() on lifecycle events (visibilitychange, focus, online)', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        getRegistrations: vi.fn().mockResolvedValue([]),
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        addEventListener: vi.fn(),
+        controller: {},
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    initializeApp();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1); // Initial check upon registration
+    mockUpdate.mockClear();
+
+    // visibilitychange (hidden -> no update)
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'hidden',
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // visibilitychange (visible -> update)
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    mockUpdate.mockClear();
+
+    // focus -> update
+    window.dispatchEvent(new Event('focus'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    mockUpdate.mockClear();
+
+    // online -> update
+    window.dispatchEvent(new Event('online'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
 });
 

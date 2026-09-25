@@ -301,4 +301,95 @@ describe('VersionSwitcher UI Component', () => {
 
     switcher.destroy();
   });
+
+  it('invokes onUpdateAvailable callback when manifest.latest does not match currentVersion', async () => {
+    const onUpdateAvailable = vi.fn();
+    const switcher = new VersionSwitcher(container, {
+      currentVersion: 'v1.0.0',
+      onUpdateAvailable,
+    });
+
+    await switcher.loadManifestPromise;
+
+    expect(onUpdateAvailable).toHaveBeenCalledWith('v1.1.0', 'v1.0.0');
+    switcher.destroy();
+  });
+
+  it('does not invoke onUpdateAvailable callback when manifest.latest matches currentVersion', async () => {
+    const onUpdateAvailable = vi.fn();
+    const switcher = new VersionSwitcher(container, {
+      currentVersion: 'v1.1.0',
+      onUpdateAvailable,
+    });
+
+    await switcher.loadManifestPromise;
+
+    expect(onUpdateAvailable).not.toHaveBeenCalled();
+    switcher.destroy();
+  });
+
+  it('correctly normalizes version prefixes when comparing manifest.latest and currentVersion', async () => {
+    const onUpdateAvailable = vi.fn();
+    // currentVersion without 'v' prefix matches manifest.latest 'v1.1.0'
+    const switcher1 = new VersionSwitcher(container, {
+      currentVersion: '1.1.0',
+      onUpdateAvailable,
+    });
+
+    await switcher1.loadManifestPromise;
+    expect(onUpdateAvailable).not.toHaveBeenCalled();
+    switcher1.destroy();
+
+    // manifest with un-prefixed latest '1.2.0' vs currentVersion 'v1.1.0'
+    vi.spyOn(globalThis, 'fetch').mockImplementationOnce(async () => {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          ...mockManifest,
+          latest: '1.2.0',
+        }),
+      } as unknown as Response;
+    });
+
+    const onUpdateAvailable2 = vi.fn();
+    const switcher2 = new VersionSwitcher(container, {
+      currentVersion: 'v1.1.0',
+      onUpdateAvailable: onUpdateAvailable2,
+    });
+
+    await switcher2.loadManifestPromise;
+    expect(onUpdateAvailable2).toHaveBeenCalledWith('1.2.0', 'v1.1.0');
+    switcher2.destroy();
+  });
+
+  it('does not invoke onUpdateAvailable callback when running under /releases/ path', async () => {
+    const originalLocation = window.location;
+    Object.defineProperty(window, 'location', {
+      value: {
+        ...originalLocation,
+        pathname: '/LearningLogo/releases/v1.0.0/',
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    try {
+      const onUpdateAvailable = vi.fn();
+      const switcher = new VersionSwitcher(container, {
+        currentVersion: 'v1.0.0',
+        onUpdateAvailable,
+      });
+
+      await switcher.loadManifestPromise;
+      expect(onUpdateAvailable).not.toHaveBeenCalled();
+      switcher.destroy();
+    } finally {
+      Object.defineProperty(window, 'location', {
+        value: originalLocation,
+        configurable: true,
+        writable: true,
+      });
+    }
+  });
 });

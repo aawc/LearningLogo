@@ -498,5 +498,409 @@ describe('Service Worker Registration Lifecycle', () => {
       });
     }
   });
+
+  it('registers immediately without waiting for load event when document.readyState is "complete"', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockRegister = vi.fn().mockResolvedValue({
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: vi.fn().mockResolvedValue(undefined),
+    });
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: mockRegister,
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    Object.defineProperty(document, 'readyState', {
+      value: 'complete',
+      configurable: true,
+    });
+
+    registerServiceWorker();
+
+    expect(mockRegister).toHaveBeenCalledWith('./sw.js');
+  });
+
+  it('calls registration.update() immediately upon registration in PROD mode', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    const mockRegister = vi.fn().mockResolvedValue(mockRegistration);
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: mockRegister,
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    registerServiceWorker();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it('triggers registration.update() on visibilitychange (when visible), window focus, and online events', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    const mockRegister = vi.fn().mockResolvedValue(mockRegistration);
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: mockRegister,
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    registerServiceWorker();
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockUpdate).toHaveBeenCalledTimes(1); // initial update
+    mockUpdate.mockClear();
+
+    // 1. visibilitychange when hidden -> should NOT trigger update
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'hidden',
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // 2. visibilitychange when visible -> should trigger update
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    mockUpdate.mockClear();
+
+    // 3. window focus -> should trigger update
+    window.dispatchEvent(new Event('focus'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    mockUpdate.mockClear();
+
+    // Rapid focus event within cooldown -> throttled
+    window.dispatchEvent(new Event('focus'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // 4. window online after cooldown -> should trigger update
+    const baseNow = Date.now();
+    vi.spyOn(Date, 'now').mockReturnValue(baseNow + 60_000);
+    window.dispatchEvent(new Event('online'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it('calls onUpdateFound immediately when worker in updatefound is already in installed state', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const installedWorker = {
+      state: 'installed',
+      addEventListener: vi.fn(),
+      postMessage: vi.fn(),
+    };
+
+    let updatefoundListener: (() => void) | null = null;
+    const mockRegistration = {
+      waiting: null,
+      installing: installedWorker,
+      addEventListener: vi.fn((event, handler) => {
+        if (event === 'updatefound') {
+          updatefoundListener = handler as () => void;
+        }
+      }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const onUpdateFound = vi.fn();
+    registerServiceWorker(onUpdateFound);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(updatefoundListener).not.toBeNull();
+    if (updatefoundListener) {
+      (updatefoundListener as () => void)();
+    }
+
+    expect(onUpdateFound).toHaveBeenCalledWith(installedWorker);
+  });
+
+  it('calls onUpdateFound when registration.installing is null but registration.waiting is populated on updatefound', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const waitingWorker = {
+      state: 'installed',
+      addEventListener: vi.fn(),
+      postMessage: vi.fn(),
+    };
+
+    let updatefoundListener: (() => void) | null = null;
+    const mockRegistration = {
+      waiting: null as { state: string; addEventListener: unknown; postMessage: unknown } | null,
+      installing: null,
+      addEventListener: vi.fn((event, handler) => {
+        if (event === 'updatefound') {
+          updatefoundListener = handler as () => void;
+        }
+      }),
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const onUpdateFound = vi.fn();
+    registerServiceWorker(onUpdateFound);
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    mockRegistration.waiting = waitingWorker;
+    expect(updatefoundListener).not.toBeNull();
+    if (updatefoundListener) {
+      (updatefoundListener as () => void)();
+    }
+
+    expect(onUpdateFound).toHaveBeenCalledWith(waitingWorker);
+  });
+
+  it('returns a ServiceWorkerHandle with working update() and getRegistration() methods', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const handle = registerServiceWorker();
+    expect(handle).toBeDefined();
+    expect(typeof handle?.update).toBe('function');
+    expect(typeof handle?.getRegistration).toBe('function');
+    expect(typeof handle?.cleanup).toBe('function');
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(handle?.getRegistration()).toBe(mockRegistration);
+    await handle?.update();
+    expect(mockUpdate).toHaveBeenCalled();
+  });
+
+  it('detaches all window and document listeners when handle.cleanup() is called (F2)', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const windowRemoveSpy = vi.spyOn(window, 'removeEventListener');
+    const documentRemoveSpy = vi.spyOn(document, 'removeEventListener');
+
+    const handle = registerServiceWorker();
+    expect(handle).toBeDefined();
+    expect(typeof handle?.cleanup).toBe('function');
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    mockUpdate.mockClear();
+
+    // Act: clean up handle
+    handle?.cleanup?.();
+
+    // Verify listeners were removed from window and document
+    expect(windowRemoveSpy).toHaveBeenCalledWith('load', expect.any(Function));
+    expect(windowRemoveSpy).toHaveBeenCalledWith('focus', expect.any(Function));
+    expect(windowRemoveSpy).toHaveBeenCalledWith('online', expect.any(Function));
+    expect(documentRemoveSpy).toHaveBeenCalledWith('visibilitychange', expect.any(Function));
+
+    // Verify that subsequent window and document events do not trigger update
+    Object.defineProperty(document, 'visibilityState', {
+      value: 'visible',
+      configurable: true,
+    });
+    document.dispatchEvent(new Event('visibilitychange'));
+    window.dispatchEvent(new Event('focus'));
+    window.dispatchEvent(new Event('online'));
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('prevents event listeners and update checks if handle.cleanup() is called before registration completes (F2)', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    const windowRemoveSpy = vi.spyOn(window, 'removeEventListener');
+    const handle = registerServiceWorker();
+
+    // Clean up immediately before async register resolves
+    handle?.cleanup?.();
+    expect(windowRemoveSpy).toHaveBeenCalledWith('load', expect.any(Function));
+
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(mockUpdate).not.toHaveBeenCalled();
+  });
+
+  it('throttles rapid window focus and online events within the 60-second cooldown period (F3)', async () => {
+    (import.meta.env as { PROD: boolean }).PROD = true;
+
+    let currentTime = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => currentTime);
+
+    const mockUpdate = vi.fn().mockResolvedValue(undefined);
+    const mockRegistration = {
+      waiting: null,
+      installing: null,
+      addEventListener: vi.fn(),
+      update: mockUpdate,
+    };
+
+    Object.defineProperty(navigator, 'serviceWorker', {
+      value: {
+        register: vi.fn().mockResolvedValue(mockRegistration),
+        controller: {},
+        addEventListener: vi.fn(),
+      },
+      configurable: true,
+      writable: true,
+    });
+
+    registerServiceWorker();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    mockUpdate.mockClear();
+
+    // 1. Initial focus event -> triggers update immediately
+    window.dispatchEvent(new Event('focus'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    mockUpdate.mockClear();
+
+    // 2. Rapid focus within 15s -> throttled (no update)
+    currentTime += 15_000;
+    window.dispatchEvent(new Event('focus'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // 3. Initial online event -> triggers update immediately
+    window.dispatchEvent(new Event('online'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    mockUpdate.mockClear();
+
+    // 4. Rapid online within 20s -> throttled (no update)
+    currentTime += 20_000;
+    window.dispatchEvent(new Event('online'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // 5. Focus after 60s cooldown elapsed (total +75s from first focus) -> triggers update
+    currentTime += 40_000;
+    window.dispatchEvent(new Event('focus'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+    mockUpdate.mockClear();
+
+    // 6. Rapid focus event immediately afterwards -> throttled
+    currentTime += 5_000;
+    window.dispatchEvent(new Event('focus'));
+    expect(mockUpdate).not.toHaveBeenCalled();
+
+    // 7. Online after 60s cooldown elapsed (total +105s from first online) -> triggers update
+    currentTime += 40_000;
+    window.dispatchEvent(new Event('online'));
+    expect(mockUpdate).toHaveBeenCalledTimes(1);
+  });
 });
 

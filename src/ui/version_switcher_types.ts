@@ -22,6 +22,7 @@ export interface VersionSwitcherOptions {
   manifestUrl?: string;
   onBeforeSwitch?: () => void;
   navigate?: (url: string) => void;
+  onUpdateAvailable?: (latestVersion: string, currentVersion: string) => void;
 }
 
 /**

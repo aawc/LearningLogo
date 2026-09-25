@@ -12,6 +12,7 @@ export class VersionSwitcher {
   private readonly currentVersion: string;
   private readonly manifestUrl: string;
   private readonly onBeforeSwitch?: () => void;
+  private readonly onUpdateAvailable?: (latestVersion: string, currentVersion: string) => void;
   private readonly navigate: (url: string) => void;
 
   private rootEl!: HTMLElement;
@@ -39,6 +40,7 @@ export class VersionSwitcher {
 
     this.manifestUrl = options.manifestUrl ?? './versions.json';
     this.onBeforeSwitch = options.onBeforeSwitch;
+    this.onUpdateAvailable = options.onUpdateAvailable;
     this.navigate = options.navigate ?? ((url: string) => {
       window.location.href = url;
     });
@@ -163,6 +165,18 @@ export class VersionSwitcher {
       if (!manifest) {
         throw new Error('Invalid manifest schema');
       }
+
+      const isHistorical =
+        typeof window !== 'undefined' &&
+        window.location.pathname.includes('/releases/');
+
+      if (!isHistorical && manifest.latest) {
+        const normalize = (v: string) => (v.startsWith('v') ? v : `v${v}`);
+        if (normalize(manifest.latest) !== normalize(this.currentVersion)) {
+          this.onUpdateAvailable?.(manifest.latest, this.currentVersion);
+        }
+      }
+
       this.renderMenu(manifest);
     } catch {
       this.renderOffline();
