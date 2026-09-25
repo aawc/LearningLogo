@@ -12,23 +12,32 @@ export function downloadBlob(blob: Blob, filename: string): void {
   URL.revokeObjectURL(url);
 }
 
+export function sanitizeFilename(name: string, fallback: string = 'turtle_project'): string {
+  const trimmed = name.trim();
+  const sanitized = trimmed.replace(/[/\\?%*:|"<>]/g, '_');
+  return sanitized || fallback;
+}
+
 export function exportLogoFile(filename: string, code: string): void {
   const blob = new Blob([code], { type: 'text/plain;charset=utf-8' });
-  const safeName = filename.endsWith('.logo') ? filename : `${filename}.logo`;
+  const baseName = sanitizeFilename(filename.replace(/\.logo$/i, ''));
+  const safeName = `${baseName}.logo`;
   downloadBlob(blob, safeName);
 }
 
 export function exportProjectJson(filename: string, project: Project): void {
   const jsonStr = serializeProject(project);
   const blob = new Blob([jsonStr], { type: 'application/json;charset=utf-8' });
-  const safeName = filename.endsWith('.json') ? filename : `${filename}.json`;
+  const baseName = sanitizeFilename(filename.replace(/\.json$/i, ''));
+  const safeName = `${baseName}.json`;
   downloadBlob(blob, safeName);
 }
 
 export function exportCanvasPng(canvas: HTMLCanvasElement, filename: string): void {
   canvas.toBlob((blob) => {
     if (blob) {
-      const safeName = filename.endsWith('.png') ? filename : `${filename}.png`;
+      const baseName = sanitizeFilename(filename.replace(/\.png$/i, ''));
+      const safeName = `${baseName}.png`;
       downloadBlob(blob, safeName);
     }
   }, 'image/png');

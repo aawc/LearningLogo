@@ -47,7 +47,7 @@ export class LocalStore {
     }
   }
 
-  saveProject(project: Project): void {
+  saveProject(project: Project): boolean {
     const list = this.listProjects();
     const idx = list.findIndex((p) => p.id === project.id);
     if (idx >= 0) {
@@ -57,8 +57,10 @@ export class LocalStore {
     }
     try {
       localStorage.setItem(PROJECTS_KEY, JSON.stringify(list));
+      return true;
     } catch (err) {
       console.error('[LocalStorage Quota Exceeded]', err);
+      return false;
     }
   }
 
