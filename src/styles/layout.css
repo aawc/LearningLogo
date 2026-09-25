@@ -30,6 +30,56 @@
   gap: 8px;
 }
 
+.project-title-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px;
+  background-color: var(--color-bg-editor);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  color: var(--color-text-main);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.15s ease;
+}
+
+.project-title-badge:hover,
+.project-title-badge:focus {
+  border-color: var(--color-primary-blue);
+  outline: none;
+}
+
+.project-title-badge .project-badge-name {
+  font-weight: 600;
+  max-width: 180px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.project-title-badge .project-badge-status {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.project-title-badge .status-dirty {
+  color: var(--color-primary-orange);
+  background-color: rgba(213, 94, 0, 0.15);
+  border: 1px solid var(--color-primary-orange);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
+.project-title-badge .status-saved {
+  color: var(--color-accent-sky);
+  background-color: rgba(86, 180, 233, 0.1);
+  border: 1px solid rgba(86, 180, 233, 0.3);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+
 .workspace {
   flex: 1;
   display: flex;

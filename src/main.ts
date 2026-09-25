@@ -7,6 +7,7 @@ import './styles/toolbar.css';
 import './styles/repl.css';
 import './styles/debugger.css';
 import './styles/modal.css';
+import './styles/export_menu.css';
 import './styles/pwa.css';
 import './styles/feedback.css';
 import './styles/version_switcher.css';
@@ -20,21 +21,26 @@ import { StepperController } from './debugger/stepper.ts';
 import { DebuggerControls } from './debugger/controls.ts';
 import { InspectorPanel } from './debugger/inspector.ts';
 import { LocalStore } from './storage/local_store.ts';
+import { ProjectManager } from './storage/project_manager.ts';
 import { ProjectModal } from './storage/project_modal.ts';
+import { openFileWithPicker, PROJECT_FILE_PICKER_TYPES } from './storage/file_system.ts';
 import {
   compressCodeToHash,
   extractCodeFromUrl,
   isHashSafeLength,
 } from './storage/url_share.ts';
+import { createProject } from './storage/project.ts';
 import {
   exportLogoFile,
   exportCanvasPng,
+  exportProjectJson,
   importFromFile,
 } from './storage/file_io.ts';
 import { UpdateBanner } from './pwa/update_banner.ts';
 import { registerServiceWorker } from './pwa/register_sw.ts';
 import { SplitLayout, createFeedbackButton } from './ui/layout.ts';
 import { VersionSwitcher } from './ui/version_switcher.ts';
+import { SplitExportButton } from './ui/split_export_button.ts';
 import { FeedbackModal } from './feedback/feedback_modal.ts';
 import { tokenize } from './interpreter/lexer.ts';
 import { parse } from './interpreter/parser.ts';
@@ -256,7 +262,44 @@ export function initializeApp(): void {
   });
 
   // 7. Header Navigation & Actions Setup
-  const modal = new ProjectModal(store, () => editor.getValue());
+  const projectManager = new ProjectManager({
+    store,
+    getCurrentCode: () => editor.getValue(),
+    setCode: (code) => {
+      editor.setValue(code);
+      turtle.clearScreen();
+      renderCanvas();
+    },
+    initialProjectName: 'Untitled Project',
+  });
+
+  const handleImport = async () => {
+    try {
+      const res = await openFileWithPicker(PROJECT_FILE_PICKER_TYPES);
+      if (!res) return;
+      const importedCode = await importFromFile(res.file);
+      editor.setValue(importedCode);
+      turtle.clearScreen();
+      renderCanvas();
+      projectManager.loadFromFile(res.file, res.handle ?? null, importedCode);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastError = { message: `Import Failed: ${msg}`, timestamp: Date.now() };
+      alert(`Import Failed: ${msg}`);
+    }
+  };
+
+  const modal = new ProjectModal(projectManager, () => editor.getValue(), {
+    onImportFile: handleImport,
+    onExportProject: (project) => {
+      exportProjectJson(project.name, project);
+    },
+    onNewProject: () => {
+      editor.setValue(DEFAULT_STARTER_CODE);
+      turtle.clearScreen();
+      renderCanvas();
+    },
+  });
   modal.setOnLoadProject((code) => {
     editor.setValue(code);
     turtle.clearScreen();
@@ -276,15 +319,78 @@ export function initializeApp(): void {
   brand.className = 'brand-title';
   brand.innerHTML = '<span class="brand-turtle">🐢</span> LearningLogo';
 
+  const titleBadge = document.createElement('div');
+  titleBadge.className = 'project-title-badge';
+  titleBadge.setAttribute('role', 'button');
+  titleBadge.setAttribute('aria-haspopup', 'dialog');
+  titleBadge.setAttribute('aria-label', 'Active project and save status: click to manage projects');
+  titleBadge.tabIndex = 0;
+
+  const updateTitleBadge = (state: { activeProjectName: string; isDirty: boolean }) => {
+    titleBadge.innerHTML = '';
+    const nameSpan = document.createElement('span');
+    nameSpan.className = 'project-badge-name';
+    nameSpan.textContent = state.activeProjectName;
+
+    const statusSpan = document.createElement('span');
+    statusSpan.className = `project-badge-status ${state.isDirty ? 'status-dirty' : 'status-saved'}`;
+    statusSpan.textContent = state.isDirty ? '[Unsaved]' : '[Saved]';
+
+    titleBadge.appendChild(nameSpan);
+    titleBadge.appendChild(statusSpan);
+  };
+
+  updateTitleBadge(projectManager.getState());
+
+  projectManager.onStateChange((state) => {
+    updateTitleBadge(state);
+  });
+
+  titleBadge.addEventListener('click', () => {
+    modal.open();
+  });
+  titleBadge.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      modal.open();
+    }
+  });
+
+  const brandGroup = document.createElement('div');
+  brandGroup.className = 'brand-group';
+  brandGroup.style.display = 'flex';
+  brandGroup.style.alignItems = 'center';
+  brandGroup.style.gap = '14px';
+  brandGroup.appendChild(brand);
+  brandGroup.appendChild(titleBadge);
+
   const actions = document.createElement('div');
   actions.className = 'header-actions';
 
+  const handleSave = async () => {
+    try {
+      await projectManager.save();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastError = { message: `Save Failed: ${msg}`, timestamp: Date.now() };
+      alert(`Save Failed: ${msg}`);
+    }
+  };
+
+  const saveBtn = document.createElement('button');
+  saveBtn.type = 'button';
+  saveBtn.className = 'dbg-btn btn-save';
+  saveBtn.textContent = '💾 Save';
+  saveBtn.addEventListener('click', handleSave);
+
   const projectsBtn = document.createElement('button');
+  projectsBtn.type = 'button';
   projectsBtn.className = 'dbg-btn';
   projectsBtn.textContent = 'Projects';
   projectsBtn.addEventListener('click', () => modal.open());
 
   const shareBtn = document.createElement('button');
+  shareBtn.type = 'button';
   shareBtn.className = 'dbg-btn';
   shareBtn.textContent = 'Share Link';
   shareBtn.addEventListener('click', () => {
@@ -302,52 +408,35 @@ export function initializeApp(): void {
     });
   });
 
-  const exportBtn = document.createElement('button');
-  exportBtn.className = 'dbg-btn';
-  exportBtn.textContent = 'Export';
-  exportBtn.addEventListener('click', () => {
-    const choice = prompt('Export as: (1) .logo file, (2) .png image', '1');
-    if (choice === '1') {
-      exportLogoFile('turtle_program', editor.getValue());
-    } else if (choice === '2') {
-      exportCanvasPng(pathCanvas, 'turtle_drawing');
-    }
-  });
-
-  // Hidden file input for import (.logo, .json)
-  const fileInput = document.createElement('input');
-  fileInput.type = 'file';
-  fileInput.accept = '.logo,.json,text/plain,application/json';
-  fileInput.style.display = 'none';
-  fileInput.addEventListener('change', async () => {
-    const file = fileInput.files?.[0];
-    if (!file) return;
-    try {
-      const importedCode = await importFromFile(file);
-      editor.setValue(importedCode);
-      turtle.clearScreen();
-      renderCanvas();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      alert(`Import Failed: ${msg}`);
-    } finally {
-      fileInput.value = '';
-    }
-  });
-  document.body.appendChild(fileInput);
-
   const importBtn = document.createElement('button');
+  importBtn.type = 'button';
   importBtn.className = 'dbg-btn';
   importBtn.textContent = 'Import';
-  importBtn.addEventListener('click', () => {
-    fileInput.click();
-  });
+  importBtn.addEventListener('click', handleImport);
 
   const feedbackBtn = createFeedbackButton(() => feedbackModal.open());
 
+  actions.appendChild(saveBtn);
   actions.appendChild(projectsBtn);
   actions.appendChild(shareBtn);
-  actions.appendChild(exportBtn);
+
+  new SplitExportButton(actions, {
+    onExportLogo: () => {
+      exportLogoFile(projectManager.getActiveProjectName(), editor.getValue());
+    },
+    onExportPng: () => {
+      exportCanvasPng(pathCanvas, projectManager.getActiveProjectName());
+    },
+    onExportJson: () => {
+      const p = createProject(projectManager.getActiveProjectName(), editor.getValue());
+      const activeId = projectManager.getActiveProjectId();
+      if (activeId) {
+        p.id = activeId;
+      }
+      exportProjectJson(projectManager.getActiveProjectName(), p);
+    },
+  });
+
   actions.appendChild(importBtn);
 
   new VersionSwitcher(actions, {
@@ -362,7 +451,7 @@ export function initializeApp(): void {
   });
 
   actions.appendChild(feedbackBtn);
-  headerContainer.appendChild(brand);
+  headerContainer.appendChild(brandGroup);
   headerContainer.appendChild(actions);
 
   // 8. Responsive Layout
@@ -384,10 +473,19 @@ export function initializeApp(): void {
   // Autosave draft on edit (debounced)
   let draftTimeout: number | null = null;
   editor.setOnChange((val) => {
+    projectManager.markDirty(true);
     if (draftTimeout !== null) clearTimeout(draftTimeout);
     draftTimeout = window.setTimeout(() => {
       store.saveDraft(val);
     }, 1000);
+  });
+
+  // Ctrl+S / Cmd+S save shortcut
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      handleSave();
+    }
   });
 
   // 10. PWA Offline Setup & Auto-Update Banner
