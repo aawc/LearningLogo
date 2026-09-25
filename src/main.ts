@@ -41,8 +41,8 @@ import { parse } from './interpreter/parser.ts';
 import { Environment } from './interpreter/environment.ts';
 import { Runtime, CancellationToken } from './interpreter/runtime.ts';
 
-const DEFAULT_STARTER_CODE = `; Welcome to LearningLogo!
-; Press [RUN] to draw a square, or explore the touch ribbon above.
+export const DEFAULT_STARTER_CODE = `; Welcome to LearningLogo! (https://varun.khaneja.org/LearningLogo/)
+; Press [RUN] to draw a square.
 
 TO SQUARE :SIZE
   REPEAT 4 [
