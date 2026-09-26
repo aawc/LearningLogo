@@ -19,6 +19,24 @@ It runs entirely in modern browsers across low-cost touchscreen Chromebooks, sma
 
 ---
 
+
+---
+
+## Supported Terrapin Logo Drawing Commands (56 Commands)
+
+LearningLogo provides full specification compatibility for all 56 Terrapin Logo drawing commands organized across 8 functional groups:
+
+| Group | Commands & Aliases | Syntax & Usage Example | Description |
+| :--- | :--- | :--- | :--- |
+| **1. Motion** (15) | `FORWARD` (`FD`), `BACK` (`BK`), `RIGHT` (`RT`), `LEFT` (`LT`), `HOME`, `SETXY` (`SETPOS`), `SETX`, `SETY`, `GETX` (`XCOR`), `GETY` (`YCOR`), `GETXY` (`POS`), `HEADING`, `SETHEADING` (`SETH`), `TOWARDS`, `DISTANCE` | `FD 50`, `SETXY [100 200]`, `TOWARDS 50 50`, `DISTANCE [0 100]` | Complete 2D Cartesian navigation supporting dual-parameter list (`[x y]`) and scalar (`x y`) forms, relative turns, and coordinate reporters. |
+| **2. Visibility & Scale** (5) | `SHOWTURTLE` (`ST`), `HIDETURTLE` (`HT`), `SHOWN?` (`SHOWNP`), `TURTLESIZE` (`TSIZE`), `SETTURTLESIZE` (`SETTSIZE`, `SETTS`) | `HT`, `ST`, `IF SHOWN? [ ... ]`, `SETTURTLESIZE 2.0` | Controls turtle sprite visibility and visual scaling factor (0.01 to 99.0). |
+| **3. Coordinate Origin** (2) | `ORIGIN`, `SETORIGIN` | `SETORIGIN [100 -50]`, `(SETORIGIN)` | Translates turtle coordinate space and sprite alignment; `(SETORIGIN)` resets origin to center `[0 0]`. |
+| **4. Polar Navigation** (6) | `PDIST`, `PANGLE`, `PHEADING`, `PSETHEADING` (`PSETH`), `PPOS`, `SETP` | `SETP 100 45`, `SETP [100 45]`, `MAKE "A PANGLE` | Polar coordinate navigation where 0° is East (3 o'clock) counter-clockwise; `SETP` moves to polar radius and aims along polar angle. |
+| **5. Pen Modes & Dynamics** (11) | `PENDOWN` (`PD`), `PENUP` (`PU`), `PENERASE` (`PE`), `PENREVERSE` (`PX`), `PEN`, `PENDOWN?` (`PENDOWNP`), `SETPEN`, `SETWIDTH` (`SETW`), `WIDTH`, `SETSTEPSIZE`, `STEPSIZE` | `PE`, `PX`, `SETPEN "PENERASE`, `SETPEN ["PE "#D55E00]`, `SETSTEPSIZE 2` | Advanced compositing modes (`source-over`, `destination-out` erase, `difference` reverse), pen dimensions, and step multipliers. |
+| **6. Speed & Dynamics** (5) | `SPEED`, `SETSPEED`, `SLOWTURTLE`, `VELOCITY`, `SETVELOCITY` | `SETSPEED 0.5`, `SLOWTURTLE`, `SETVELOCITY 100` | Motion execution rate configuration and independent velocity simulation. |
+| **7. Shapes, Dots & Fills** (6) | `DOT`, `DOT?` (`DOTP`), `DOTCOLOR`, `FILL`, `STAMPOVAL`, `STAMPRECT` | `DOT [10 10]`, `(DOT -10 -20)`, `(DOT? [10 10])`, `(FILL "#0072B2)`, `(STAMPOVAL 50 30 "TRUE)` | Geometric stamp rendering (ovals, rectangles), pixel interrogation reporters, and high-performance scanline flood fill. |
+| **8. Typography** (6) | `FONT`, `FONTS`, `SETFONT`, `TURTLETEXT` (`TT`), `TURTLETEXTBASE` (`TTBASE`), `TURTLETEXTSIZE` (`TTSIZE`) | `SETFONT "Courier 16 3`, `TT [HELLO LOGO]`, `MAKE "H TTBASE` | Typography engine supporting font family, size, attributes (bold/italic), text placement, baseline alignment, and bounding box metrics. |
+
 ## Tech Stack
 
 - **Language**: TypeScript 5.x (Strict ES2022+)

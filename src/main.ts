@@ -133,7 +133,7 @@ export function initializeApp(): void {
 
   const renderCanvas = () => {
     const vp = getViewport();
-    renderer.renderPaths(turtle.getPathSegments(), vp);
+    renderer.renderDrawElements(turtle.getDrawElements(), vp);
     renderer.renderTurtle(turtle.getState(), vp);
   };
 
@@ -202,7 +202,7 @@ export function initializeApp(): void {
       const env = new Environment();
       turtle.clearScreen();
       renderCanvas();
-      stepper.load(ast, env, turtle);
+      stepper.load(ast, env, turtle, { renderer });
       return true;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -258,7 +258,7 @@ export function initializeApp(): void {
       const ast = parse(tokens);
       const cancel = new CancellationToken();
       const runtime = new Runtime();
-      for (const _ of runtime.execute(ast, replEnv, turtle, cancel)) {
+      for (const _ of runtime.execute(ast, replEnv, turtle, cancel, { renderer })) {
         // execute immediate
       }
       renderCanvas();

@@ -64,12 +64,12 @@ export class StepperController {
     this.onStopCallback = cb;
   }
 
-  load(program: ProgramNode, env: Environment, turtle: Turtle): void {
+  load(program: ProgramNode, env: Environment, turtle: Turtle, options?: import('../interpreter/runtime.ts').RuntimeOptions): void {
     this.stop();
     this.cancelToken.reset();
     this.callStack = ['Global'];
     this.lastStep = null;
-    this.generator = this.runtime.execute(program, env, turtle, this.cancelToken);
+    this.generator = this.runtime.execute(program, env, turtle, this.cancelToken, options);
   }
 
   run(): void {
