@@ -37,20 +37,41 @@ const NAMED_COLOR_MAP: Record<string, string> = {
   WHITE: '#FFFFFF',
 };
 
-export function resolveColor(input: string | number): string {
+export function resolveColor(input: string | number | readonly number[] | unknown): string {
+  if (Array.isArray(input)) {
+    if (input.length >= 3) {
+      const r = Math.max(0, Math.min(255, Math.round(Number(input[0]) || 0)));
+      const g = Math.max(0, Math.min(255, Math.round(Number(input[1]) || 0)));
+      const b = Math.max(0, Math.min(255, Math.round(Number(input[2]) || 0)));
+      return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`.toUpperCase();
+    }
+    return '#000000';
+  }
+
   if (typeof input === 'number') {
     const idx = Math.floor(input) % OKABE_ITO_PALETTE.length;
     const entry = OKABE_ITO_PALETTE[Math.abs(idx)];
     return entry ? entry.hex : '#000000';
   }
 
-  const str = input.trim().toUpperCase();
-  if (str.startsWith('#')) {
-    return input.trim();
+  if (typeof input !== 'string') {
+    return '#000000';
   }
 
-  if (Object.prototype.hasOwnProperty.call(NAMED_COLOR_MAP, str)) {
-    return NAMED_COLOR_MAP[str]!;
+  const str = input.trim();
+  if (str.startsWith('#')) {
+    if (str.length === 4) {
+      const r = str[1];
+      const g = str[2];
+      const b = str[3];
+      return `#${r}${r}${g}${g}${b}${b}`.toUpperCase();
+    }
+    return str.toUpperCase();
+  }
+
+  const upper = str.toUpperCase();
+  if (Object.prototype.hasOwnProperty.call(NAMED_COLOR_MAP, upper)) {
+    return NAMED_COLOR_MAP[upper]!;
   }
 
   return '#000000';

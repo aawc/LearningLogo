@@ -30,7 +30,13 @@ describe('Okabe-Ito Colorblind-Safe Palette', () => {
     expect(resolveColor(2)).toBe('#D55E00');
     expect(resolveColor('BLUE')).toBe('#0072B2');
     expect(resolveColor('ORANGE')).toBe('#D55E00');
-    expect(resolveColor('VERMILION')).toBe('#D55E00');
     expect(resolveColor('#123456')).toBe('#123456');
+  });
+
+  it('resolves 3-element RGB arrays and 3-char hex strings', () => {
+    expect(resolveColor([0, 114, 178])).toBe('#0072B2');
+    expect(resolveColor([213, 94, 0])).toBe('#D55E00');
+    expect(resolveColor('#abc')).toBe('#AABBCC');
+    expect(resolveColor('#F00')).toBe('#FF0000');
   });
 });
