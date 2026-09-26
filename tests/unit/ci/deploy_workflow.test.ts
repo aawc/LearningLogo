@@ -32,9 +32,9 @@ describe('GitHub Actions Deployment Workflow (.github/workflows/deploy.yml)', ()
     expect(content).toContain('npm run test');
     expect(content).toContain('npm run build');
 
-    // Version determination & release creation
+    // Version determination for Pages subdirectories; release creation delegated to release.yml
     expect(content).toContain('scripts/determine_release_version.mjs');
-    expect(content).toContain('gh release create');
+    expect(content).not.toContain('gh release create');
 
     // Multi-version manifest & gh-pages branch sync
     expect(content).toContain('scripts/generate_versions_manifest.mjs');

@@ -54,22 +54,7 @@ jobs:
           VITE_APP_VERSION: ${{ steps.determine_version.outputs.version }}
         run: npm run build
 
-      - name: Package release archive
-        env:
-          TAG: ${{ steps.determine_version.outputs.version }}
-        run: |
-          cd dist
-          zip -r "../learning-logo-${TAG}.zip" .
-          cd ..
-
-      - name: Publish GitHub Release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ steps.determine_version.outputs.version }}
-        run: |
-          gh release create "${TAG}" "learning-logo-${TAG}.zip" \
-            --title "Release ${TAG}" \
-            --generate-notes
+      # Note: GitHub Release creation with VirusTotal evaluation is delegated to .github/workflows/release.yml
 
       - name: Assemble Multi-Version Staging Tree
         env:
