@@ -72,4 +72,56 @@ export class CoordinateTransform {
     const deg = (rad * 180) / Math.PI;
     return CoordinateTransform.normalizeHeading(deg);
   }
+
+  /**
+   * Calculates Euclidean distance between two points.
+   */
+  static calculateDistance(p1: Point2D, p2: Point2D): number {
+    return Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  }
+
+  /**
+   * Calculates polar distance (hypotenuse) from displacement.
+   */
+  static cartesianToPolarDistance(dx: number, dy: number): number {
+    return Math.hypot(dx, dy);
+  }
+
+  /**
+   * Calculates polar angle in degrees counter-clockwise from East (3 o'clock) in range [0, 360).
+   */
+  static cartesianToPolarAngle(dx: number, dy: number): number {
+    if (dx === 0 && dy === 0) return 0;
+    const rad = Math.atan2(dy, dx);
+    const deg = (rad * 180) / Math.PI;
+    return ((deg % 360) + 360) % 360;
+  }
+
+  /**
+   * Converts Cartesian heading (0° North, clockwise) to Polar heading (0° East, counter-clockwise).
+   * North (0°) -> 90°, East (90°) -> 0°, South (180°) -> 270°, West (270°) -> 180°.
+   */
+  static cartesianToPolarHeading(cartesianHeading: number): number {
+    return ((450 - cartesianHeading) % 360 + 360) % 360;
+  }
+
+  /**
+   * Converts Polar heading (0° East, counter-clockwise) to Cartesian heading (0° North, clockwise).
+   * Polar 90° -> North (0°), Polar 0° -> East (90°), Polar 270° -> South (180°), Polar 180° -> West (270°).
+   */
+  static polarToCartesianHeading(polarHeading: number): number {
+    return ((450 - polarHeading) % 360 + 360) % 360;
+  }
+
+  /**
+   * Calculates displacement (dx, dy) for polar distance and polar angle (degrees counter-clockwise from East).
+   */
+  static polarToDisplacement(distance: number, polarAngle: number): Point2D {
+    const rad = (polarAngle * Math.PI) / 180;
+    let dx = distance * Math.cos(rad);
+    let dy = distance * Math.sin(rad);
+    if (Math.abs(dx) < 1e-12) dx = 0;
+    if (Math.abs(dy) < 1e-12) dy = 0;
+    return { x: dx, y: dy };
+  }
 }

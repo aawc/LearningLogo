@@ -63,4 +63,72 @@ describe('Cartesian Coordinate Transformations & Trigonometry', () => {
     expect(logoPt.x).toBe(100);
     expect(logoPt.y).toBe(100);
   });
+
+  describe('Euclidean Distance and Polar Coordinate Math', () => {
+    it('calculates Euclidean distance between two points', () => {
+      const p1 = { x: 10, y: 20 };
+      const p2 = { x: 40, y: 60 };
+      expect(CoordinateTransform.calculateDistance(p1, p2)).toBe(50);
+      expect(CoordinateTransform.calculateDistance(p1, p1)).toBe(0);
+    });
+
+    it('calculates polar distance (hypotenuse) from displacement', () => {
+      expect(CoordinateTransform.cartesianToPolarDistance(3, 4)).toBe(5);
+      expect(CoordinateTransform.cartesianToPolarDistance(0, 0)).toBe(0);
+      expect(CoordinateTransform.cartesianToPolarDistance(-5, 12)).toBe(13);
+    });
+
+    it('calculates polar angle in degrees counter-clockwise from East [0, 360)', () => {
+      // East (10, 0) -> 0 deg
+      expect(CoordinateTransform.cartesianToPolarAngle(10, 0)).toBe(0);
+      // North (0, 10) -> 90 deg
+      expect(CoordinateTransform.cartesianToPolarAngle(0, 10)).toBe(90);
+      // West (-10, 0) -> 180 deg
+      expect(CoordinateTransform.cartesianToPolarAngle(-10, 0)).toBe(180);
+      // South (0, -10) -> 270 deg
+      expect(CoordinateTransform.cartesianToPolarAngle(0, -10)).toBe(270);
+      // Origin (0, 0) -> 0 deg
+      expect(CoordinateTransform.cartesianToPolarAngle(0, 0)).toBe(0);
+    });
+
+    it('converts between Cartesian heading (clockwise from North) and Polar heading (counter-clockwise from East)', () => {
+      // North: Cartesian 0 -> Polar 90
+      expect(CoordinateTransform.cartesianToPolarHeading(0)).toBe(90);
+      expect(CoordinateTransform.polarToCartesianHeading(90)).toBe(0);
+
+      // East: Cartesian 90 -> Polar 0
+      expect(CoordinateTransform.cartesianToPolarHeading(90)).toBe(0);
+      expect(CoordinateTransform.polarToCartesianHeading(0)).toBe(90);
+
+      // South: Cartesian 180 -> Polar 270
+      expect(CoordinateTransform.cartesianToPolarHeading(180)).toBe(270);
+      expect(CoordinateTransform.polarToCartesianHeading(270)).toBe(180);
+
+      // West: Cartesian 270 -> Polar 180
+      expect(CoordinateTransform.cartesianToPolarHeading(270)).toBe(180);
+      expect(CoordinateTransform.polarToCartesianHeading(180)).toBe(270);
+    });
+
+    it('calculates displacement from polar distance and angle', () => {
+      // 10 units at 0 deg (East): dx=10, dy=0
+      const east = CoordinateTransform.polarToDisplacement(10, 0);
+      expect(Math.round(east.x)).toBe(10);
+      expect(Math.round(east.y)).toBe(0);
+
+      // 10 units at 90 deg (North): dx=0, dy=10
+      const north = CoordinateTransform.polarToDisplacement(10, 90);
+      expect(Math.round(north.x)).toBe(0);
+      expect(Math.round(north.y)).toBe(10);
+
+      // 10 units at 180 deg (West): dx=-10, dy=0
+      const west = CoordinateTransform.polarToDisplacement(10, 180);
+      expect(Math.round(west.x)).toBe(-10);
+      expect(Math.round(west.y)).toBe(0);
+
+      // 10 units at 270 deg (South): dx=0, dy=-10
+      const south = CoordinateTransform.polarToDisplacement(10, 270);
+      expect(Math.round(south.x)).toBe(0);
+      expect(Math.round(south.y)).toBe(-10);
+    });
+  });
 });
