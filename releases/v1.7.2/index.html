@@ -7,8 +7,8 @@
     <meta name="theme-color" content="#0072B2" />
     <link rel="manifest" href="manifest.json" />
     <title>LearningLogo - Turtle Graphics</title>
-    <script type="module" crossorigin src="./assets/index-BgYYtbJR.js"></script>
-    <link rel="stylesheet" crossorigin href="./assets/index-CKt4YhwN.css">
+    <script type="module" crossorigin src="./assets/index-IisabqjA.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-I2eWHKKp.css">
   </head>
   <body>
     <div id="app">
@@ -19,12 +19,13 @@
           <div id="editor-container" class="twin-editor"></div>
           <div id="repl-container" class="repl-console" role="region" aria-label="Interactive REPL console"></div>
         </section>
+        <div id="pane-splitter" class="pane-splitter" role="separator" tabindex="0" aria-orientation="vertical" aria-label="Resize editor and canvas panes" aria-valuenow="50" aria-valuemin="20" aria-valuemax="80"></div>
         <section id="canvas-pane" class="pane" aria-label="Graphics Output Pane">
           <div id="debugger-container" class="debugger-panel" role="region" aria-label="Debugger controls and inspector"></div>
           <div id="canvas-container" class="canvas-viewport" role="region" aria-label="Turtle canvas viewport"></div>
         </section>
       </div>
-      <aside id="pwa-banner" class="pwa-update-toast" role="alert" aria-live="polite" hidden></aside>
+      <aside id="pwa-banner" role="status" aria-live="polite" aria-atomic="true" aria-label="Application updates"></aside>
     </div>
   </body>
 </html>
