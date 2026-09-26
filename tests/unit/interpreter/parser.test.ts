@@ -181,4 +181,82 @@ describe('AST Parser with Pratt Precedence', () => {
     expect(xcorCall.name).toBe('XCOR');
     expect(xcorCall.args.length).toBe(0);
   });
+
+  describe('Variadic Parenthesized Invocations & Dual-Parameter Forms', () => {
+    it('parses parenthesized zero-arity command calls (DOT), (SETORIGIN), (SETFONT)', () => {
+      const ast = parse(tokenize('(DOT)\n(SETORIGIN)\n(SETFONT)'));
+      expect(ast.body.length).toBe(3);
+
+      const dotCmd = ast.body[0] as CommandCallNode;
+      expect(dotCmd.type).toBe('CommandCall');
+      expect(dotCmd.name).toBe('DOT');
+      expect(dotCmd.args.length).toBe(0);
+
+      const originCmd = ast.body[1] as CommandCallNode;
+      expect(originCmd.name).toBe('SETORIGIN');
+      expect(originCmd.args.length).toBe(0);
+
+      const fontCmd = ast.body[2] as CommandCallNode;
+      expect(fontCmd.name).toBe('SETFONT');
+      expect(fontCmd.args.length).toBe(0);
+    });
+
+    it('parses parenthesized variadic calls (FILL "RED), (STAMPOVAL 50 50 "TRUE)', () => {
+      const ast = parse(tokenize('(FILL "RED)\n(STAMPOVAL 50 50 "TRUE)'));
+      expect(ast.body.length).toBe(2);
+
+      const fillCmd = ast.body[0] as CommandCallNode;
+      expect(fillCmd.name).toBe('FILL');
+      expect(fillCmd.args.length).toBe(1);
+
+      const ovalCmd = ast.body[1] as CommandCallNode;
+      expect(ovalCmd.name).toBe('STAMPOVAL');
+      expect(ovalCmd.args.length).toBe(3);
+    });
+
+    it('parses dual parameter forms: list [x y] (1 arg) vs scalars x y (2 args)', () => {
+      const astList = parse(tokenize('SETXY [50 100] TOWARDS [0 0] DISTANCE [10 20]'));
+      expect(astList.body.length).toBe(3);
+      expect((astList.body[0] as CommandCallNode).args.length).toBe(1);
+      expect((astList.body[1] as CommandCallNode).args.length).toBe(1);
+      expect((astList.body[2] as CommandCallNode).args.length).toBe(1);
+
+      const astScalars = parse(tokenize('SETXY 50 100 TOWARDS 0 0 DISTANCE 10 20'));
+      expect(astScalars.body.length).toBe(3);
+      expect((astScalars.body[0] as CommandCallNode).args.length).toBe(2);
+      expect((astScalars.body[1] as CommandCallNode).args.length).toBe(2);
+      expect((astScalars.body[2] as CommandCallNode).args.length).toBe(2);
+    });
+
+    it('distinguishes parenthesized command calls from math grouping like (HEADING + 90)', () => {
+      const ast = parse(tokenize('MAKE "ANGLE (HEADING + 90)'));
+      const make = ast.body[0] as MakeNode;
+      expect(make.type).toBe('Make');
+      const binOp = make.value as BinaryOpNode;
+      expect(binOp.type).toBe('BinaryOp');
+      expect(binOp.op).toBe('+');
+      expect((binOp.left as CommandCallNode).name).toBe('HEADING');
+    });
+
+    it('parses parenthesized commands with negative arguments like (DOT -10 20) and (STAMPOVAL -50 50 "TRUE)', () => {
+      const ast = parse(tokenize('(DOT -10 20)\n(STAMPOVAL -50 50 "TRUE)\nMAKE "A (HEADING - 90)'));
+      expect(ast.body.length).toBe(3);
+
+      const dotCmd = ast.body[0] as CommandCallNode;
+      expect(dotCmd.type).toBe('CommandCall');
+      expect(dotCmd.name).toBe('DOT');
+      expect(dotCmd.args.length).toBe(2);
+
+      const ovalCmd = ast.body[1] as CommandCallNode;
+      expect(ovalCmd.type).toBe('CommandCall');
+      expect(ovalCmd.name).toBe('STAMPOVAL');
+      expect(ovalCmd.args.length).toBe(3);
+
+      const make = ast.body[2] as MakeNode;
+      const binOp = make.value as BinaryOpNode;
+      expect(binOp.type).toBe('BinaryOp');
+      expect(binOp.op).toBe('-');
+      expect((binOp.left as CommandCallNode).name).toBe('HEADING');
+    });
+  });
 });

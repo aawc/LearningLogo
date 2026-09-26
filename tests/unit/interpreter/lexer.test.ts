@@ -138,4 +138,42 @@ describe('Lexer (Tokenizer)', () => {
     expect(tokens[0]?.value).toBe(0.5);
     expect(tokens[2]?.value).toBe(0.75);
   });
+
+  describe('Extended Word Literals & Symbols', () => {
+    it('tokenizes word literals containing hex #, hyphens, and dots', () => {
+      const tokens = tokenize('"#0072B2 "TIMES-ROMAN "FILE.LOGO');
+      expect(tokens.map((t) => t.type)).toEqual([
+        TokenType.WORD_LITERAL,
+        TokenType.WORD_LITERAL,
+        TokenType.WORD_LITERAL,
+        TokenType.EOF,
+      ]);
+      expect(tokens[0]?.value).toBe('#0072B2');
+      expect(tokens[1]?.value).toBe('TIMES-ROMAN');
+      expect(tokens[2]?.value).toBe('FILE.LOGO');
+    });
+
+    it('tokenizes command identifiers with question marks in parenthesized calls', () => {
+      const tokens = tokenize('(DOT? [50 50]) (SHOWN?) (PENDOWN?)');
+      expect(tokens.map((t) => t.type)).toEqual([
+        TokenType.LPAREN,
+        TokenType.IDENTIFIER,
+        TokenType.LIST_OPEN,
+        TokenType.NUMBER,
+        TokenType.NUMBER,
+        TokenType.LIST_CLOSE,
+        TokenType.RPAREN,
+        TokenType.LPAREN,
+        TokenType.IDENTIFIER,
+        TokenType.RPAREN,
+        TokenType.LPAREN,
+        TokenType.IDENTIFIER,
+        TokenType.RPAREN,
+        TokenType.EOF,
+      ]);
+      expect(tokens[1]?.value).toBe('DOT?');
+      expect(tokens[8]?.value).toBe('SHOWN?');
+      expect(tokens[11]?.value).toBe('PENDOWN?');
+    });
+  });
 });

@@ -1,9 +1,9 @@
 import { type Token, TokenType, type SourceLocation } from './token.ts';
 import { LexerError } from './errors.ts';
 
-const NUMBER_REGEX = /^([0-9]+(\.[0-9]+)?|\.[0-9]+)/;
+const NUMBER_REGEX = /^-?([0-9]+(\.[0-9]+)?|\.[0-9]+)/;
 const IDENTIFIER_REGEX = /^[a-zA-Z_?][a-zA-Z0-9_?]*/;
-const WORD_LITERAL_REGEX = /^"[a-zA-Z0-9_?]*/;
+const WORD_LITERAL_REGEX = /^"[^\s\[\]\(\)]*/;
 const VAR_LOOKUP_REGEX = /^:[a-zA-Z0-9_?]*/;
 const OPERATOR_REGEX = /^(<=|>=|<>|=|<|>|\+|-|\*|\/|%)/;
 
@@ -110,10 +110,27 @@ export function tokenize(source: string): Token[] {
       }
     }
 
-    // Numbers
+    // Numbers (positive or negative literal with leading space/delimiter)
+    const r1 = remaining[1];
+    const r2 = remaining[2];
+    const isNegativeNumber =
+      char === '-' &&
+      r1 !== undefined &&
+      ((r1 >= '0' && r1 <= '9') ||
+        (r1 === '.' && r2 !== undefined && r2 >= '0' && r2 <= '9')) &&
+      (index === 0 ||
+        source[index - 1] === ' ' ||
+        source[index - 1] === '\t' ||
+        source[index - 1] === '\n' ||
+        source[index - 1] === '\r' ||
+        source[index - 1] === '[' ||
+        source[index - 1] === '(' ||
+        tokens[tokens.length - 1]?.type === TokenType.OPERATOR);
+
     if (
       (char !== undefined && char >= '0' && char <= '9') ||
-      (char === '.' && remaining.length > 1 && remaining[1] !== undefined && remaining[1] >= '0' && remaining[1] <= '9')
+      (char === '.' && r1 !== undefined && r1 >= '0' && r1 <= '9') ||
+      isNegativeNumber
     ) {
       const match = NUMBER_REGEX.exec(remaining);
       if (match) {

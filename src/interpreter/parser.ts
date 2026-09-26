@@ -20,6 +20,7 @@ import type {
 } from './ast.ts';
 
 const COMMAND_ARITY: Record<string, number> = {
+  // Group 1: Motion (15)
   FD: 1,
   FORWARD: 1,
   BK: 1,
@@ -28,30 +29,111 @@ const COMMAND_ARITY: Record<string, number> = {
   RIGHT: 1,
   LT: 1,
   LEFT: 1,
-  CS: 0,
-  CLEARSCREEN: 0,
   HOME: 0,
-  PU: 0,
-  PENUP: 0,
-  PD: 0,
-  PENDOWN: 0,
-  HT: 0,
-  HIDETURTLE: 0,
+  SETXY: 2,
+  SETPOS: 2,
+  SETX: 1,
+  SETY: 1,
+  GETX: 0,
+  XCOR: 0,
+  GETY: 0,
+  YCOR: 0,
+  GETXY: 0,
+  POS: 0,
+  HEADING: 0,
+  SETHEADING: 1,
+  SETH: 1,
+  TOWARDS: 2,
+  DISTANCE: 2,
+
+  // Group 2: Visibility & Scale (5)
   ST: 0,
   SHOWTURTLE: 0,
+  HT: 0,
+  HIDETURTLE: 0,
+  'SHOWN?': 0,
+  SHOWNP: 0,
+  TURTLESIZE: 0,
+  TSIZE: 0,
+  SETTURTLESIZE: 1,
+  SETTSIZE: 1,
+  SETTS: 1,
+
+  // Group 3: Coordinate Origin (2)
+  ORIGIN: 0,
+  SETORIGIN: 2,
+
+  // Group 4: Polar Coordinates (6)
+  PDIST: 0,
+  PANGLE: 0,
+  PHEADING: 0,
+  PSETHEADING: 1,
+  PSETH: 1,
+  PPOS: 0,
+  SETP: 2,
+
+  // Group 5: Pen Modes & Attributes (11)
+  PD: 0,
+  PENDOWN: 0,
+  PU: 0,
+  PENUP: 0,
+  PE: 0,
+  PENERASE: 0,
+  PX: 0,
+  PENREVERSE: 0,
+  PEN: 0,
+  'PENDOWN?': 0,
+  PENDOWNP: 0,
+  SETPEN: 1,
+  SETWIDTH: 1,
+  SETW: 1,
+  WIDTH: 0,
+  SETSTEPSIZE: 1,
+  STEPSIZE: 0,
+
+  // Group 6: Speed & Dynamics (5)
+  SPEED: 0,
+  SETSPEED: 1,
+  SLOWTURTLE: 0,
+  VELOCITY: 0,
+  SETVELOCITY: 1,
+
+  // Group 7: Shapes, Dots & Fills (6)
+  DOT: 1,
+  'DOT?': 0,
+  DOTP: 0,
+  DOTCOLOR: 0,
+  FILL: 0,
+  STAMPOVAL: 2,
+  STAMPRECT: 2,
+
+  // Group 8: Typography (6)
+  FONT: 0,
+  FONTS: 0,
+  SETFONT: 3,
+  TURTLETEXT: 1,
+  TT: 1,
+  TURTLETEXTBASE: 0,
+  TTBASE: 0,
+  TURTLETEXTSIZE: 1,
+  TTSIZE: 1,
+
+  // General Logo Primitives & System Commands
+  CS: 0,
+  CLEARSCREEN: 0,
+  CLEAN: 0,
   SETPC: 1,
   SETPENCOLOR: 1,
   SETPW: 1,
   SETPENWIDTH: 1,
   SETBG: 1,
   SETBACKGROUND: 1,
-  SETXY: 2,
   PRINT: 1,
   PR: 1,
+  SHOW: 1,
   STOP: 0,
   OUTPUT: 1,
   OP: 1,
-  // Prefix Primitives & Extended Commands
   SUM: 2,
   DIFFERENCE: 2,
   PRODUCT: 2,
@@ -82,19 +164,9 @@ const COMMAND_ARITY: Record<string, number> = {
   LIST: 2,
   THING: 1,
   LOCAL: 1,
-  SETX: 1,
-  SETY: 1,
-  SETH: 1,
-  SETHEADING: 1,
-  TOWARDS: 2,
-  XCOR: 0,
-  YCOR: 0,
-  HEADING: 0,
-  CLEAN: 0,
   PENSIZE: 1,
   ARC: 2,
   CIRCLE: 1,
-  SHOW: 1,
 };
 
 const PRECEDENCE: Record<string, number> = {
@@ -156,8 +228,46 @@ export class Parser {
     };
   }
 
+  private isParenthesizedCommandCall(): boolean {
+    const next = this.tokens[this.cursor + 1];
+    if (!next || next.type !== TokenType.IDENTIFIER) {
+      return false;
+    }
+
+    const nextNext = this.tokens[this.cursor + 2];
+    if (!nextNext || nextNext.type !== TokenType.OPERATOR) {
+      return true;
+    }
+
+    // If nextNext is an operator other than unary '-', it is infix math grouping like (HEADING + 90)
+    if (nextNext.value !== '-') {
+      return false;
+    }
+
+    // nextNext is '-'. Check if the identifier is an arity-0 numeric reporter
+    const name = String(next.value).toUpperCase();
+    const isNumericReporter = (
+      name === 'XCOR' || name === 'GETX' ||
+      name === 'YCOR' || name === 'GETY' ||
+      name === 'HEADING' || name === 'REPCOUNT' ||
+      name === 'PANGLE' || name === 'PDIST' || name === 'PHEADING' ||
+      name === 'WIDTH' || name === 'STEPSIZE' || name === 'SPEED' ||
+      name === 'VELOCITY' || name === 'TURTLESIZE' || name === 'TSIZE' ||
+      name === 'TURTLETEXTBASE' || name === 'TTBASE'
+    );
+
+    // If it is an arity-0 numeric reporter, '-' is an infix operator; otherwise it is a unary negative argument
+    return !isNumericReporter;
+  }
+
   private parseStatement(): ASTNode {
     const token = this.currentToken();
+
+    if (token.type === TokenType.LPAREN) {
+      if (this.isParenthesizedCommandCall()) {
+        return this.parseParenthesizedCommand();
+      }
+    }
 
     if (token.type === TokenType.IDENTIFIER) {
       const name = String(token.value).toUpperCase();
@@ -196,6 +306,25 @@ export class Parser {
 
     // Default expression statement
     return this.parseExpression();
+  }
+
+  private parseParenthesizedCommand(): CommandCallNode {
+    const lparen = this.consume(TokenType.LPAREN, 'Expected (');
+    const idToken = this.consume(TokenType.IDENTIFIER, 'Expected command identifier');
+    const name = String(idToken.value).toUpperCase();
+    const args: ExpressionNode[] = [];
+
+    while (!this.isAtEnd() && this.currentToken().type !== TokenType.RPAREN) {
+      args.push(this.parseExpression(0));
+    }
+
+    this.consume(TokenType.RPAREN, "Expected ')' after parenthesized command arguments");
+    return {
+      type: 'CommandCall',
+      name,
+      args,
+      loc: lparen.loc,
+    };
   }
 
   private parseRepeat(): RepeatNode {
@@ -321,7 +450,22 @@ export class Parser {
   private parseCommandCall(): CommandCallNode {
     const idToken = this.consume(TokenType.IDENTIFIER, 'Expected command identifier');
     const name = String(idToken.value).toUpperCase();
-    const arity = this.userArities.get(name) ?? COMMAND_ARITY[name] ?? 0;
+    let arity = this.userArities.get(name) ?? COMMAND_ARITY[name] ?? 0;
+
+    // Dual parameter support for coordinate points [x y] vs separate scalar arguments
+    if (
+      (name === 'SETXY' ||
+        name === 'SETPOS' ||
+        name === 'TOWARDS' ||
+        name === 'DISTANCE' ||
+        name === 'SETORIGIN' ||
+        name === 'SETP' ||
+        name === 'SETFONT') &&
+      this.currentToken().type === TokenType.LIST_OPEN
+    ) {
+      arity = 1;
+    }
+
     const args: ExpressionNode[] = [];
 
     for (let i = 0; i < arity; i++) {
@@ -404,6 +548,10 @@ export class Parser {
     }
 
     if (token.type === TokenType.LPAREN) {
+      if (this.isParenthesizedCommandCall()) {
+        return this.parseParenthesizedCommand();
+      }
+
       this.advance();
       const expr = this.parseExpression(0);
       this.consume(TokenType.RPAREN, "Expected ')' after expression");
@@ -442,7 +590,7 @@ export class Parser {
     const elements: ASTNode[] = [];
 
     while (!this.isAtEnd() && this.currentToken().type !== TokenType.LIST_CLOSE) {
-      elements.push(this.parseStatement());
+      elements.push(this.parseExpression(35));
     }
 
     this.consume(TokenType.LIST_CLOSE, "Expected ']' at end of list");
