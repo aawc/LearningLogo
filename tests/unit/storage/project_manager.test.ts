@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, type Mock } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type Mock } from 'vitest';
 import { ProjectManager } from '../../../src/storage/project_manager.ts';
 import { LocalStore } from '../../../src/storage/local_store.ts';
 import { createProject } from '../../../src/storage/project.ts';
@@ -22,9 +22,16 @@ describe('ProjectManager State Management (Requirement 1 - Core)', () => {
     });
   });
 
+  afterEach(() => {
+    delete (window as any).showSaveFilePicker;
+    delete (window as any).showOpenFilePicker;
+    vi.restoreAllMocks();
+  });
+
   it('initializes with default untitled state and not dirty', () => {
     expect(manager.getActiveProjectId()).toBeNull();
     expect(manager.getActiveProjectName()).toBe('Untitled Project');
+    expect(manager.getActiveFileName()).toBe('Untitled.logo');
     expect(manager.getActiveFileHandle()).toBeNull();
     expect(manager.getIsDirty()).toBe(false);
   });
@@ -111,6 +118,34 @@ describe('ProjectManager State Management (Requirement 1 - Core)', () => {
     expect(store.listProjects()).toHaveLength(0);
   });
 
+  it('falls back to saveAs() when activeFileHandle permission is denied', async () => {
+    const mockHandle = {
+      name: 'locked.logo',
+      queryPermission: vi.fn().mockResolvedValue('denied'),
+      requestPermission: vi.fn().mockResolvedValue('denied'),
+    } as unknown as FileSystemFileHandle;
+
+    const mockPickerHandle = {
+      name: 'unlocked.logo',
+      createWritable: vi.fn().mockResolvedValue({
+        write: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+      }),
+    } as unknown as FileSystemFileHandle;
+
+    (window as any).showSaveFilePicker = vi.fn().mockResolvedValue(mockPickerHandle);
+    (window as any).showOpenFilePicker = vi.fn();
+
+    manager.setActiveFileHandle(mockHandle, 'locked.logo');
+    currentCode = 'FD 75';
+    manager.markDirty(true);
+
+    const saved = await manager.save();
+    expect(saved).toBe(true);
+    expect((window as any).showSaveFilePicker).toHaveBeenCalled();
+    expect(manager.getActiveFileHandle()).toBe(mockPickerHandle);
+  });
+
   it('creates a new copy with saveAs and updates active project', async () => {
     await manager.save();
     const firstId = manager.getActiveProjectId();
@@ -194,4 +229,74 @@ describe('ProjectManager State Management (Requirement 1 - Core)', () => {
     expect(manager.getActiveFileHandle()).toBeNull();
     expect(manager.getIsDirty()).toBe(false);
   });
+
+  it('resets to new file with newFile()', () => {
+    currentCode = 'FD 99';
+    manager.markDirty(true);
+    const mockHandle = { name: 'old.logo' } as unknown as FileSystemFileHandle;
+    manager.setActiveFileHandle(mockHandle, 'old');
+
+    manager.newFile();
+    expect(manager.getActiveProjectId()).toBeNull();
+    expect(manager.getActiveFileName()).toBe('Untitled.logo');
+    expect(manager.getActiveFileHandle()).toBeNull();
+    expect(manager.getIsDirty()).toBe(false);
+    expect(setCodeFn).toHaveBeenCalledWith(expect.stringContaining('; Welcome to LearningLogo!'));
+  });
+
+  it('opens file via openFile() and updates code, handle, and filename', async () => {
+    const mockFile = new File(['TO TREE FD 50 END'], 'forest.logo', { type: 'text/plain' });
+    const mockHandle = {
+      name: 'forest.logo',
+      getFile: vi.fn().mockResolvedValue(mockFile),
+    } as unknown as FileSystemFileHandle;
+
+    (window as any).showOpenFilePicker = vi.fn().mockResolvedValue([mockHandle]);
+    (window as any).showSaveFilePicker = vi.fn();
+
+    const loaded = await manager.openFile();
+    expect(loaded).toBe(true);
+    expect(manager.getActiveFileName()).toBe('forest.logo');
+    expect(manager.getActiveFileHandle()).toBe(mockHandle);
+    expect(manager.getIsDirty()).toBe(false);
+    expect(setCodeFn).toHaveBeenCalledWith('TO TREE FD 50 END');
+  });
+
+  it('returns false from openFile() when user cancels', async () => {
+    const abortError = new Error('User aborted');
+    abortError.name = 'AbortError';
+    (window as any).showOpenFilePicker = vi.fn().mockRejectedValue(abortError);
+    (window as any).showSaveFilePicker = vi.fn();
+
+    const loaded = await manager.openFile();
+    expect(loaded).toBe(false);
+  });
+
+  it('delegates save() to saveAs() when activeFileHandle is null and File System Access API is present', async () => {
+    const mockWritable = {
+      write: vi.fn().mockResolvedValue(undefined),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const mockHandle = {
+      name: 'save_as_target.logo',
+      createWritable: vi.fn().mockResolvedValue(mockWritable),
+    } as unknown as FileSystemFileHandle;
+
+    (window as any).showSaveFilePicker = vi.fn().mockResolvedValue(mockHandle);
+    (window as any).showOpenFilePicker = vi.fn();
+
+    currentCode = 'FD 500';
+    manager.markDirty(true);
+
+    const saved = await manager.save();
+    expect(saved).toBe(true);
+    expect((window as any).showSaveFilePicker).toHaveBeenCalledWith(
+      expect.objectContaining({ suggestedName: 'Untitled.logo' })
+    );
+    expect(mockWritable.write).toHaveBeenCalledWith('FD 500');
+    expect(manager.getActiveFileHandle()).toBe(mockHandle);
+    expect(manager.getActiveFileName()).toBe('save_as_target.logo');
+    expect(manager.getIsDirty()).toBe(false);
+  });
 });
+

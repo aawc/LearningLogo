@@ -254,4 +254,31 @@ describe('Enhanced ProjectModal (Requirement 1 - UI)', () => {
     expect(exportBtn.getAttribute('aria-label')).toBe('Export project "Geometrics"');
     expect(delBtn.getAttribute('aria-label')).toBe('Delete project "Geometrics"');
   });
+
+  it('confirms discarding unsaved changes before creating new project when dirty', () => {
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    manager.markDirty(true);
+    modal.open();
+
+    const newBtn = document.querySelector('.btn-new-project') as HTMLButtonElement;
+    newBtn.click();
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('unsaved changes'));
+    expect(manager.getActiveProjectName()).toBe('Active Project');
+  });
+
+  it('confirms discarding unsaved changes before loading another project when dirty', () => {
+    const p = createProject('Geometrics', 'REPEAT 3 [ FD 100 RT 120 ]');
+    store.saveProject(p);
+
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    manager.markDirty(true);
+    modal.open();
+
+    const openBtn = document.querySelector('.btn-proj-open') as HTMLButtonElement;
+    openBtn.click();
+
+    expect(confirmSpy).toHaveBeenCalledWith(expect.stringContaining('unsaved changes'));
+    expect(manager.getActiveProjectId()).not.toBe(p.id);
+  });
 });

@@ -47,21 +47,8 @@ import { parse } from './interpreter/parser.ts';
 import { Environment } from './interpreter/environment.ts';
 import { Runtime, CancellationToken } from './interpreter/runtime.ts';
 
-export const DEFAULT_STARTER_CODE = `; Welcome to LearningLogo! (https://varun.khaneja.org/LearningLogo/)
-; Press [RUN] to draw a square.
-
-TO SQUARE :SIZE
-  REPEAT 4 [
-    FD :SIZE
-    RT 90
-  ]
-END
-
-CS
-SETPC "BLUE
-SETPW 3
-SQUARE 120
-`;
+export { DEFAULT_STARTER_CODE } from './editor/starter_code.ts';
+import { DEFAULT_STARTER_CODE } from './editor/starter_code.ts';
 
 export function initializeApp(): void {
   const editorContainer = document.getElementById('editor-container');
@@ -281,7 +268,20 @@ export function initializeApp(): void {
     initialProjectName: 'Untitled Project',
   });
 
+  const confirmDiscardUnsaved = (): boolean => {
+    if (!projectManager.getIsDirty()) return true;
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
+    try {
+      const res = window.confirm('You have unsaved changes. Discard them?');
+      if (res === undefined) return true;
+      return Boolean(res);
+    } catch {
+      return true;
+    }
+  };
+
   const handleImport = async () => {
+    if (!confirmDiscardUnsaved()) return;
     try {
       const res = await openFileWithPicker(PROJECT_FILE_PICKER_TYPES);
       if (!res) return;
@@ -294,6 +294,48 @@ export function initializeApp(): void {
       const msg = err instanceof Error ? err.message : String(err);
       lastError = { message: `Import Failed: ${msg}`, timestamp: Date.now() };
       alert(`Import Failed: ${msg}`);
+    }
+  };
+
+  const handleNew = () => {
+    if (!confirmDiscardUnsaved()) return;
+    projectManager.newFile();
+    turtle.clearScreen();
+    renderCanvas();
+  };
+
+  const handleOpen = async () => {
+    if (!confirmDiscardUnsaved()) return;
+    try {
+      const success = await projectManager.openFile();
+      if (success) {
+        turtle.clearScreen();
+        renderCanvas();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastError = { message: `Open Failed: ${msg}`, timestamp: Date.now() };
+      alert(`Open Failed: ${msg}`);
+    }
+  };
+
+  const handleSave = async () => {
+    try {
+      await projectManager.save();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastError = { message: `Save Failed: ${msg}`, timestamp: Date.now() };
+      alert(`Save Failed: ${msg}`);
+    }
+  };
+
+  const handleSaveAs = async () => {
+    try {
+      await projectManager.saveAs();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      lastError = { message: `Save As Failed: ${msg}`, timestamp: Date.now() };
+      alert(`Save As Failed: ${msg}`);
     }
   };
 
@@ -334,24 +376,36 @@ export function initializeApp(): void {
   titleBadge.setAttribute('aria-label', 'Active project and save status: click to manage projects');
   titleBadge.tabIndex = 0;
 
-  const updateTitleBadge = (state: { activeProjectName: string; isDirty: boolean }) => {
+  const updateDocumentTitle = (state: { activeFileName: string; isDirty: boolean }) => {
+    document.title = `${state.isDirty ? '*' : ''}${state.activeFileName} - LearningLogo`;
+  };
+
+  const updateTitleBadge = (state: { activeProjectName: string; activeFileName: string; isDirty: boolean }) => {
     titleBadge.innerHTML = '';
     const nameSpan = document.createElement('span');
     nameSpan.className = 'project-badge-name';
-    nameSpan.textContent = state.activeProjectName;
+    nameSpan.textContent = state.activeFileName || `${state.activeProjectName}.logo`;
+
+    const projectSpan = document.createElement('span');
+    projectSpan.className = 'sr-only project-badge-project';
+    projectSpan.style.display = 'none';
+    projectSpan.textContent = state.activeProjectName;
 
     const statusSpan = document.createElement('span');
     statusSpan.className = `project-badge-status ${state.isDirty ? 'status-dirty' : 'status-saved'}`;
     statusSpan.textContent = state.isDirty ? '[Unsaved]' : '[Saved]';
 
     titleBadge.appendChild(nameSpan);
+    titleBadge.appendChild(projectSpan);
     titleBadge.appendChild(statusSpan);
   };
 
   updateTitleBadge(projectManager.getState());
+  updateDocumentTitle(projectManager.getState());
 
   projectManager.onStateChange((state) => {
     updateTitleBadge(state);
+    updateDocumentTitle(state);
   });
 
   titleBadge.addEventListener('click', () => {
@@ -375,21 +429,29 @@ export function initializeApp(): void {
   const actions = document.createElement('div');
   actions.className = 'header-actions';
 
-  const handleSave = async () => {
-    try {
-      await projectManager.save();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      lastError = { message: `Save Failed: ${msg}`, timestamp: Date.now() };
-      alert(`Save Failed: ${msg}`);
-    }
-  };
+  const newBtn = document.createElement('button');
+  newBtn.type = 'button';
+  newBtn.className = 'dbg-btn btn-new';
+  newBtn.textContent = '📄 New';
+  newBtn.addEventListener('click', handleNew);
+
+  const openBtn = document.createElement('button');
+  openBtn.type = 'button';
+  openBtn.className = 'dbg-btn btn-open';
+  openBtn.textContent = '📂 Open...';
+  openBtn.addEventListener('click', handleOpen);
 
   const saveBtn = document.createElement('button');
   saveBtn.type = 'button';
   saveBtn.className = 'dbg-btn btn-save';
   saveBtn.textContent = '💾 Save';
   saveBtn.addEventListener('click', handleSave);
+
+  const saveAsBtn = document.createElement('button');
+  saveAsBtn.type = 'button';
+  saveAsBtn.className = 'dbg-btn btn-save-as';
+  saveAsBtn.textContent = '💾 Save As...';
+  saveAsBtn.addEventListener('click', handleSaveAs);
 
   const projectsBtn = document.createElement('button');
   projectsBtn.type = 'button';
@@ -424,7 +486,10 @@ export function initializeApp(): void {
 
   const feedbackBtn = createFeedbackButton(() => feedbackModal.open());
 
+  actions.appendChild(newBtn);
+  actions.appendChild(openBtn);
   actions.appendChild(saveBtn);
+  actions.appendChild(saveAsBtn);
   actions.appendChild(projectsBtn);
   actions.appendChild(shareBtn);
 
@@ -537,6 +602,37 @@ export function initializeApp(): void {
     } else {
       editor.setValue(DEFAULT_STARTER_CODE);
     }
+
+    // Check if running within local Go desktop embed server
+    if (
+      typeof window !== 'undefined' &&
+      (window.location.hostname === '127.0.0.1' || window.location.hostname === 'localhost') &&
+      typeof fetch === 'function'
+    ) {
+      fetch('/api/status', {
+        headers: { 'X-LearningLogo-Client': '1' },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then(async (status) => {
+          if (status && status.activeFile) {
+            const fileRes = await fetch(`/api/file?path=${encodeURIComponent(status.activeFile)}`, {
+              headers: { 'X-LearningLogo-Client': '1' },
+            });
+            if (fileRes.ok) {
+              const code = await fileRes.text();
+              editor.setValue(code);
+              turtle.clearScreen();
+              renderCanvas();
+              const fileName = status.activeFile.split(/[/\\]/).pop() || 'Untitled.logo';
+              projectManager.setActiveFileName(fileName);
+              projectManager.markDirty(false);
+            }
+          }
+        })
+        .catch(() => {
+          // Running in standard browser or dev server without active Go desktop API
+        });
+    }
   }
 
   // Autosave draft on edit (debounced)
@@ -549,11 +645,100 @@ export function initializeApp(): void {
     }, 1000);
   });
 
-  // Ctrl+S / Cmd+S save shortcut
+  // Keyboard shortcuts: Ctrl+S / Cmd+S (Save), Ctrl+Shift+S (Save As), Ctrl+O (Open), Ctrl+N (New)
   window.addEventListener('keydown', (e) => {
-    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+    if (e.ctrlKey || e.metaKey) {
+      const key = e.key.toLowerCase();
+      if (key === 's') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          handleSaveAs();
+        } else {
+          handleSave();
+        }
+      } else if (key === 'o' && !e.shiftKey) {
+        e.preventDefault();
+        handleOpen();
+      } else if (key === 'n' && !e.shiftKey) {
+        e.preventDefault();
+        handleNew();
+      }
+    }
+  });
+
+  // Drag-and-drop file loading onto window / editor
+  const handleDragOver = (e: DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer) {
+      e.dataTransfer.dropEffect = 'copy';
+    }
+    document.body.classList.add('drag-active');
+  };
+
+  const handleDragLeave = (e: DragEvent) => {
+    e.preventDefault();
+    document.body.classList.remove('drag-active');
+  };
+
+  const handleDrop = async (e: DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    document.body.classList.remove('drag-active');
+
+    if (!confirmDiscardUnsaved()) return;
+
+    const dt = e.dataTransfer;
+    if (!dt) return;
+
+    let handle: FileSystemFileHandle | null = null;
+    let file: File | null = null;
+
+    if (dt.items && dt.items.length > 0) {
+      const item = dt.items[0];
+      if (item) {
+        if (typeof (item as any).getAsFileSystemHandle === 'function') {
+          try {
+            const h = await (item as any).getAsFileSystemHandle();
+            if (h && (h.kind === 'file' || !h.kind)) {
+              handle = h as FileSystemFileHandle;
+              file = await handle.getFile();
+            }
+          } catch {
+            // Fallback to getAsFile
+          }
+        }
+        if (!file && item.kind === 'file') {
+          file = item.getAsFile();
+        }
+      }
+    } else if (dt.files && dt.files.length > 0) {
+      file = dt.files[0] ?? null;
+    }
+
+    if (file) {
+      let code = '';
+      if (typeof file.text === 'function') {
+        code = await file.text();
+      } else {
+        code = await importFromFile(file);
+      }
+      editor.setValue(code);
+      turtle.clearScreen();
+      renderCanvas();
+      projectManager.loadFromFile(file, handle, code);
+    }
+  };
+
+  window.addEventListener('dragover', handleDragOver);
+  window.addEventListener('dragleave', handleDragLeave);
+  window.addEventListener('drop', handleDrop);
+
+  // Warn before closing or navigating if unsaved changes exist
+  window.addEventListener('beforeunload', (e) => {
+    if (projectManager.getIsDirty()) {
       e.preventDefault();
-      handleSave();
+      e.returnValue = '';
+      return '';
     }
   });
 

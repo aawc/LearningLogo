@@ -69,6 +69,18 @@ export class ProjectModal {
     this.onNewProject = cb;
   }
 
+  private confirmDiscardIfDirty(): boolean {
+    if (!this.projectManager.getIsDirty()) return true;
+    if (typeof window === 'undefined' || typeof window.confirm !== 'function') return true;
+    try {
+      const res = window.confirm('You have unsaved changes. Discard them?');
+      if (res === undefined) return true;
+      return Boolean(res);
+    } catch {
+      return true;
+    }
+  }
+
   open(): void {
     if (this.modalEl) return;
 
@@ -122,6 +134,7 @@ export class ProjectModal {
     newBtn.className = 'dbg-btn btn-new-project';
     newBtn.textContent = '+ New Project';
     newBtn.addEventListener('click', () => {
+      if (!this.confirmDiscardIfDirty()) return;
       const name = window.prompt('Enter new project name:', 'My Logo Project');
       if (name !== null) {
         this.projectManager.newProject(name);
@@ -235,6 +248,7 @@ export class ProjectModal {
       openBtn.textContent = 'Open';
       openBtn.setAttribute('aria-label', `Open project "${proj.name}"`);
       openBtn.addEventListener('click', () => {
+        if (!this.confirmDiscardIfDirty()) return;
         this.projectManager.loadProject(proj);
         if (this.onLoadProject) {
           this.onLoadProject(proj.code, proj.name);

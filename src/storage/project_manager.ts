@@ -1,11 +1,21 @@
 import type { LocalStore } from './local_store.ts';
 import type { Project } from './project.ts';
 import { createProject } from './project.ts';
-import { writeToFileHandle } from './file_system.ts';
+import {
+  writeToFileHandle,
+  hasFileSystemAccess,
+  openFileWithPicker,
+  saveFileAsWithHandle,
+  verifyHandlePermission,
+  LOGO_FILE_PICKER_TYPES,
+} from './file_system.ts';
+import { importFromFile } from './file_io.ts';
+import { DEFAULT_STARTER_CODE } from '../editor/starter_code.ts';
 
 export interface ProjectState {
   activeProjectId: string | null;
   activeProjectName: string;
+  activeFileName: string;
   activeFileHandle: FileSystemFileHandle | null;
   isDirty: boolean;
 }
@@ -15,6 +25,7 @@ export interface ProjectManagerOptions {
   getCurrentCode: () => string;
   setCode: (code: string) => void;
   initialProjectName?: string;
+  initialFileName?: string;
 }
 
 export class ProjectManager {
@@ -24,6 +35,7 @@ export class ProjectManager {
 
   private activeProjectId: string | null = null;
   private activeProjectName: string = 'Untitled Project';
+  private activeFileName: string = 'Untitled.logo';
   private activeFileHandle: FileSystemFileHandle | null = null;
   private isDirty: boolean = false;
 
@@ -33,6 +45,14 @@ export class ProjectManager {
     this.store = options.store;
     this.getCurrentCode = options.getCurrentCode;
     this.setCode = options.setCode;
+
+    if (options.initialFileName) {
+      this.activeFileName = options.initialFileName;
+    } else if (options.initialProjectName && options.initialProjectName !== 'Untitled Project') {
+      this.activeFileName = `${options.initialProjectName}.logo`;
+    } else {
+      this.activeFileName = 'Untitled.logo';
+    }
 
     if (options.initialProjectName) {
       this.activeProjectName = options.initialProjectName;
@@ -59,6 +79,15 @@ export class ProjectManager {
     return this.activeProjectName;
   }
 
+  public getActiveFileName(): string {
+    return this.activeFileName;
+  }
+
+  public setActiveFileName(name: string): void {
+    this.activeFileName = name;
+    this.emitChange();
+  }
+
   public getActiveFileHandle(): FileSystemFileHandle | null {
     return this.activeFileHandle;
   }
@@ -71,6 +100,7 @@ export class ProjectManager {
     return {
       activeProjectId: this.activeProjectId,
       activeProjectName: this.activeProjectName,
+      activeFileName: this.activeFileName,
       activeFileHandle: this.activeFileHandle,
       isDirty: this.isDirty,
     };
@@ -101,8 +131,10 @@ export class ProjectManager {
     this.activeFileHandle = handle;
     this.activeProjectId = null;
     if (name) {
-      this.activeProjectName = name;
+      this.activeProjectName = name.replace(/\.(logo|json)$/i, '');
+      this.activeFileName = name.endsWith('.logo') ? name : `${name}.logo`;
     } else if (handle?.name) {
+      this.activeFileName = handle.name;
       this.activeProjectName = handle.name.replace(/\.(logo|json)$/i, '');
     }
     this.emitChange();
@@ -111,6 +143,7 @@ export class ProjectManager {
   public newProject(name?: string, initialCode?: string): void {
     this.activeProjectId = null;
     this.activeProjectName = name?.trim() || 'Untitled Project';
+    this.activeFileName = `${this.activeProjectName}.logo`;
     this.activeFileHandle = null;
     this.isDirty = false;
     if (initialCode !== undefined) {
@@ -119,14 +152,53 @@ export class ProjectManager {
     this.emitChange();
   }
 
+  public newFile(): void {
+    this.activeProjectId = null;
+    this.activeProjectName = 'Untitled Project';
+    this.activeFileName = 'Untitled.logo';
+    this.activeFileHandle = null;
+    this.isDirty = false;
+    this.setCode(DEFAULT_STARTER_CODE);
+    this.emitChange();
+  }
+
+  public async openFile(): Promise<boolean> {
+    try {
+      const res = await openFileWithPicker(LOGO_FILE_PICKER_TYPES);
+      if (!res) return false;
+      const text =
+        typeof res.file.text === 'function'
+          ? await res.file.text()
+          : await importFromFile(res.file);
+      this.loadFromFile(res.file, res.handle ?? null, text);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   public async save(): Promise<boolean> {
     const code = this.getCurrentCode();
 
     if (this.activeFileHandle) {
-      await writeToFileHandle(this.activeFileHandle, code);
-      this.isDirty = false;
-      this.emitChange();
-      return true;
+      try {
+        const permitted = await verifyHandlePermission(this.activeFileHandle, 'readwrite');
+        if (permitted) {
+          await writeToFileHandle(this.activeFileHandle, code);
+          this.isDirty = false;
+          this.emitChange();
+          return true;
+        }
+      } catch {
+        // Fallback to saveAs if permission check or in-place write fails
+      }
+      const res = await this.saveAs(this.activeFileName);
+      return res !== null && res !== false;
+    }
+
+    if (hasFileSystemAccess()) {
+      const res = await this.saveAs(this.activeFileName);
+      return res !== null && res !== false;
     }
 
     if (this.activeProjectId) {
@@ -150,7 +222,7 @@ export class ProjectManager {
       return true;
     }
 
-    // No existing ID or file handle -> save as new project in store
+    // No existing ID or file handle and no File System Access API -> save as new project in store
     const created = createProject(this.activeProjectName, code);
     const success = this.store.saveProject(created);
     if (!success) {
@@ -158,30 +230,43 @@ export class ProjectManager {
     }
     this.activeProjectId = created.id;
     this.activeProjectName = created.name;
+    this.activeFileName = `${created.name}.logo`;
     this.isDirty = false;
     this.emitChange();
     return true;
   }
 
-  public async saveAs(name?: string): Promise<Project> {
+  public async saveAs(nameOrSuggested?: string): Promise<any> {
     const code = this.getCurrentCode();
-    const projName = name?.trim() || this.activeProjectName;
-    const project = createProject(projName, code);
-    const success = this.store.saveProject(project);
-    if (!success) {
-      throw new Error('Storage quota exceeded or storage unavailable');
+    const suggested = nameOrSuggested || this.activeFileName;
+
+    // Always delegate to saveFileAsWithHandle so non-Chromium browsers receive downloadBlob fallback
+    const res = await saveFileAsWithHandle(code, suggested, LOGO_FILE_PICKER_TYPES);
+    if (!res) {
+      return null;
     }
 
+    this.activeFileHandle = res.handle;
+    this.activeFileName = res.name.endsWith('.logo') ? res.name : `${res.name}.logo`;
+    this.activeProjectName = res.name.replace(/\.(logo|json)$/i, '') || 'Untitled Project';
+
+    // Also persist project to LocalStore for backup / store tracking
+    const projName = this.activeProjectName;
+    const project = createProject(projName, code);
+    const success = this.store.saveProject(project);
+    if (!success && !res.handle) {
+      throw new Error('Storage quota exceeded or storage unavailable');
+    }
     this.activeProjectId = project.id;
-    this.activeProjectName = project.name;
-    this.activeFileHandle = null;
+
     this.isDirty = false;
     this.emitChange();
-    return project;
+    return res.handle ?? project;
   }
 
   public renameProject(newName: string): void {
     this.activeProjectName = newName.trim() || 'Untitled Project';
+    this.activeFileName = `${this.activeProjectName}.logo`;
 
     if (this.activeProjectId) {
       const proj = this.store.getProject(this.activeProjectId);
@@ -209,6 +294,7 @@ export class ProjectManager {
     if (this.activeProjectId === id) {
       this.activeProjectId = null;
       this.activeProjectName = 'Untitled Project';
+      this.activeFileName = 'Untitled.logo';
       this.activeFileHandle = null;
       this.isDirty = false;
     }
@@ -218,6 +304,7 @@ export class ProjectManager {
   public loadProject(project: Project): void {
     this.activeProjectId = project.id;
     this.activeProjectName = project.name;
+    this.activeFileName = `${project.name}.logo`;
     this.activeFileHandle = null;
     this.isDirty = false;
     this.setCode(project.code);
@@ -227,6 +314,7 @@ export class ProjectManager {
   public loadFromFile(file: File, handle?: FileSystemFileHandle | null, code?: string): void {
     this.activeProjectId = null;
     this.activeFileHandle = handle ?? null;
+    this.activeFileName = file.name;
     this.activeProjectName = file.name.replace(/\.(logo|json)$/i, '') || 'Untitled Project';
     this.isDirty = false;
     if (code !== undefined) {

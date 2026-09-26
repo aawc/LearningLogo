@@ -37,8 +37,19 @@ export async function writeToFileHandle(
   content: string | Blob
 ): Promise<void> {
   const writable = await (handle as any).createWritable();
-  await writable.write(content);
-  await writable.close();
+  try {
+    await writable.write(content);
+    await writable.close();
+  } catch (err) {
+    if (typeof (writable as any).abort === 'function') {
+      try {
+        await (writable as any).abort();
+      } catch {
+        // Suppress secondary abort errors
+      }
+    }
+    throw err;
+  }
 }
 
 export async function saveFileWithPicker(
@@ -145,4 +156,73 @@ export async function openFileWithPicker(
 
     input.click();
   });
+}
+
+export async function saveFileAsWithHandle(
+  content: string | Blob,
+  suggestedName: string = 'Untitled.logo',
+  types: FilePickerFilter[] = LOGO_FILE_PICKER_TYPES
+): Promise<{ handle: FileSystemFileHandle | null; name: string } | null> {
+  if (hasFileSystemAccess()) {
+    try {
+      const options: Record<string, unknown> = {
+        suggestedName,
+      };
+      if (types && types.length > 0) {
+        options.types = types;
+      }
+      const handle = await (window as any).showSaveFilePicker(options);
+      await writeToFileHandle(handle, content);
+      return { handle, name: handle.name || suggestedName };
+    } catch (err: unknown) {
+      if (err instanceof Error && err.name === 'AbortError') {
+        return null;
+      }
+      throw err;
+    }
+  }
+
+  // Fallback to traditional browser download
+  const blob =
+    typeof content === 'string'
+      ? new Blob([content], { type: 'text/plain;charset=utf-8' })
+      : content;
+  downloadBlob(blob, suggestedName);
+  return { handle: null, name: suggestedName };
+}
+
+export async function verifyHandlePermission(
+  handle: FileSystemFileHandle,
+  mode: 'read' | 'readwrite' = 'readwrite'
+): Promise<boolean> {
+  if (typeof (handle as any).queryPermission === 'function') {
+    const opts = { mode };
+    const status = await (handle as any).queryPermission(opts);
+    if (status === 'granted') {
+      return true;
+    }
+    if (typeof (handle as any).requestPermission === 'function') {
+      const reqStatus = await (handle as any).requestPermission(opts);
+      return reqStatus === 'granted';
+    }
+  }
+  return true;
+}
+
+export async function readFileFromHandle(
+  handle: FileSystemFileHandle
+): Promise<{ file: File; text: string }> {
+  const file = await handle.getFile();
+  let text = '';
+  if (typeof file.text === 'function') {
+    text = await file.text();
+  } else {
+    text = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(String(reader.result ?? ''));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+  }
+  return { file, text };
 }

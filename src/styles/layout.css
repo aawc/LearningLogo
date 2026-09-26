@@ -234,3 +234,10 @@ body.is-resizing canvas {
     min-height: 250px;
   }
 }
+
+/* Drag-and-drop Visual Feedback */
+body.drag-active {
+  outline: 3px dashed var(--color-primary-blue);
+  outline-offset: -3px;
+}
+
