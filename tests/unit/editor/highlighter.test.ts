@@ -64,4 +64,23 @@ describe('Syntax Highlighter & Bracket Matcher', () => {
     const htmlLineCount = html.split('\n').length;
     expect(htmlLineCount).toBe(rawLineCount);
   });
+
+  it('highlights all built-in drawing commands including STAMPOVAL, STAMPRECT, DOT, and FILL as commands', () => {
+    const code = 'SETPC "RED\nSTAMPOVAL 50 20\nSTAMPRECT 40 30\nDOT [10 10]\nFILL';
+    const { html } = highlightLogoCode(code);
+
+    expect(html).toContain('<span class="hl-command">STAMPOVAL</span>');
+    expect(html).toContain('<span class="hl-command">STAMPRECT</span>');
+    expect(html).toContain('<span class="hl-command">DOT</span>');
+    expect(html).toContain('<span class="hl-command">FILL</span>');
+  });
+
+  it('highlights predicate and boolean commands with question marks as commands', () => {
+    const code = 'IF EQUAL? :X 10 [ ST ]\nIF SHOWN? [ PENDOWN? ]';
+    const { html } = highlightLogoCode(code);
+
+    expect(html).toContain('<span class="hl-command">EQUAL?</span>');
+    expect(html).toContain('<span class="hl-command">SHOWN?</span>');
+    expect(html).toContain('<span class="hl-command">PENDOWN?</span>');
+  });
 });

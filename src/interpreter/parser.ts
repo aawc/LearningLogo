@@ -19,7 +19,7 @@ import type {
   OutputNode,
 } from './ast.ts';
 
-const COMMAND_ARITY: Record<string, number> = {
+export const COMMAND_ARITY: Record<string, number> = {
   // Group 1: Motion (15)
   FD: 1,
   FORWARD: 1,
@@ -148,6 +148,9 @@ const COMMAND_ARITY: Record<string, number> = {
   AND: 2,
   OR: 2,
   NOT: 1,
+  'EQUAL?': 2,
+  'LESS?': 2,
+  'GREATER?': 2,
   FIRST: 1,
   LAST: 1,
   BUTFIRST: 1,

@@ -1,3 +1,5 @@
+import { COMMAND_ARITY } from '../interpreter/parser.ts';
+
 function escapeHtml(str: string): string {
   return str
     .replace(/&/g, '&amp;')
@@ -19,51 +21,9 @@ const KEYWORDS = new Set([
   'MAKE',
 ]);
 
-const COMMANDS = new Set([
-  'FD',
-  'FORWARD',
-  'BK',
-  'BACK',
-  'RT',
-  'RIGHT',
-  'LT',
-  'LEFT',
-  'CS',
-  'CLEARSCREEN',
-  'HOME',
-  'PU',
-  'PENUP',
-  'PD',
-  'PENDOWN',
-  'HT',
-  'HIDETURTLE',
-  'ST',
-  'SHOWTURTLE',
-  'SETPC',
-  'SETPENCOLOR',
-  'SETPW',
-  'SETPENWIDTH',
-  'SETXY',
-  'PRINT',
-  'PR',
-  'SUM',
-  'DIFFERENCE',
-  'PRODUCT',
-  'QUOTIENT',
-  'REMAINDER',
-  'RANDOM',
-  'SQRT',
-  'ROUND',
-  'FIRST',
-  'LAST',
-  'BUTFIRST',
-  'BF',
-  'BUTLAST',
-  'BL',
-  'COUNT',
-  'WORD',
-  'LIST',
-]);
+export const COMMANDS: ReadonlySet<string> = new Set(
+  Object.keys(COMMAND_ARITY)
+);
 
 export interface HighlightResult {
   html: string;
