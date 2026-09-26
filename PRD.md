@@ -194,6 +194,28 @@ Hosted entirely as a static web application on GitHub Pages, LearningLogo operat
   - Installable to home screen or desktop on ChromeOS, Android, iOS Safari, Windows, and macOS.
   - Update Notification: Non-intrusive banner appears when a new version is deployed to GitHub Pages: *"New version available. [Reload to Update]"*.
 
+### FR-6: Editor-Grade Local Disk File I/O Subsystem
+- **Direct Disk Persistence**: Bidirectional file synchronization using the HTML5 File System Access API with automatic fallback to download blobs.
+- **In-Place File Save**: `Ctrl+S` / `Cmd+S` saves directly to active file handle without re-prompting dialogs.
+- **Save As & Open Dialogs**: `Ctrl+Shift+S` opens file picker to save a copy; `Ctrl+O` loads disk `.logo` files.
+- **New Project Reset**: `Ctrl+N` resets editor to starter template, clears active file handle, and resets file name to `Untitled.logo`.
+- **Drag-and-Drop Loading**: Dragging `.logo` or `.json` files onto window or editor loads code and binds active file handle.
+- **Data Loss Prevention**: Unsaved changes confirmation dialog (`confirmDiscardUnsaved`) before Open, New, or loading, paired with browser `beforeunload` warning.
+- **Dual Visual State Encoding**: Document title bar sync (`*Untitled.logo - LearningLogo`) and colorblind-safe badges (`[Saved]` / `[Unsaved]`).
+
+### FR-7: High-Performance Go Desktop Binary & Loopback Server
+- **Single-Binary Portability**: Hermetic desktop binary written in Go with embedded production web assets via `//go:embed all:dist`.
+- **Loopback Security Architecture**: Bound strictly to `127.0.0.1` on dynamic ports (`:0`) or configured `--port`, enforcing origin verification and path traversal prevention.
+- **Automatic Browser Launch**: Launches default browser on startup (`rundll32` on Windows, `open` on macOS, `xdg-open` on Linux), with `--no-browser` headless override.
+- **Command-Line File Opening**: Positional argument `learning-logo [file.logo]` automatically opens and binds specified file.
+
+### FR-8: Multi-Platform Installers & Automated VirusTotal Pipeline
+- **Native Packaging Matrix**:
+  - Windows: Modern UI 2 NSIS installer with desktop/start menu shortcuts and uninstaller registry entries, plus standalone zip.
+  - macOS: `LearningLogo.app` bundle configured via `Info.plist` and zip archive.
+  - Linux: FreeDesktop application launcher (`.desktop`), icon integration, and standalone tarballs.
+- **Automated VirusTotal Evaluation**: Pipeline automatically submits every binary and installer to VirusTotal via `crazy-max/ghaction-virustotal@v5` and formats permanent SHA-256 detection links in release notes.
+
 ---
 
 ## 5. Non-Functional Requirements (NFRs)

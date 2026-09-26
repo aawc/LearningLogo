@@ -24,13 +24,15 @@ All development in this repository must prioritize pedagogical clarity, robust o
 
 ## Technology Stack & Architectural Decisions
 
-- **Language & Runtime**: TypeScript 5.x targeting modern ES2022+ standards with strict type checking enabled.
-- **Build & Development Tool**: Vite for sub-second Hot Module Replacement (HMR) and optimized, zero-friction static production bundling.
+- **Language & Runtime**: TypeScript 5.x targeting modern ES2022+ standards with strict type checking enabled, and Go 1.22+ for the self-contained native desktop executable.
+- **Build & Development Tool**: Vite for sub-second Hot Module Replacement (HMR) and optimized, zero-friction static production bundling. Go standard toolchain for single-binary packaging.
+- **Desktop Binary & Embed Subsystem**: Pure Go HTTP server (`pkg/server/`) binding to loopback `127.0.0.1` on dynamic ports (`:0`), embedding the production web application using `//go:embed all:dist`, offering origin-verified file I/O APIs and automatic cross-platform browser launch.
+- **Local Disk File I/O**: Direct in-place file editing and saving via HTML5 File System Access API with fallback to Blob downloads, drag-and-drop file loading, unsaved changes confirmation guards, and desktop keyboard shortcuts (`Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+O`, `Ctrl+N`).
 - **UI Architecture**: Pure, lightweight modular TypeScript with native Web Components / lightweight reactive UI. Zero heavy framework runtime bloat (React/Angular) to guarantee instantaneous load times (< 1.0s FCP) on low-end Chromebooks and 3G mobile connections. Total production bundle target: < 150 KB gzipped.
 - **Graphics & Turtle Subsystem**: HTML5 2D Canvas with sub-pixel high-DPI scaling (`window.devicePixelRatio`), Cartesian coordinate space with center origin (0, 0), Y-axis pointing North, and 0° heading facing North. Fully supports all 56 Terrapin Logo drawing commands covering pure decoupled state management, origin translation, polar coordinate navigation, pen erase/reverse compositing, shapes, high-performance in-memory scanline flood fill, and typography.
 - **Interpreter Subsystem**: Recursive-descent AST parser and non-blocking cooperative execution engine with time-slicing and instruction budget limits to eliminate browser freezing from infinite loops.
 - **PWA & Offline Architecture**: Native Service Worker with Cache-First asset strategy, versioned caches, immediate update toast notification, and Web App Manifest configured for GitHub Pages static hosting with base path compatibility.
-- **Test Framework**: Vitest for fast, native TypeScript unit and integration testing.
+- **Test Framework**: Vitest for fast, native TypeScript unit and integration testing; `go test` for Go desktop server unit tests.
 
 ---
 
@@ -41,6 +43,15 @@ LearningLogo/
 ├── LICENSE                 # MIT License
 ├── PROMPT.md               # Developer & AI agent steering guide (this file)
 ├── PRD.md                  # Product Requirements Document
+├── GEMINI.md               # AI Agent mandates and engineering standards
+├── go.mod                  # Go module definition (github.com/aawc/learning-logo)
+├── assets/                 # Desktop application packaging assets
+│   ├── macos/              # macOS Info.plist bundle metadata
+│   └── linux/              # Linux FreeDesktop .desktop application launcher
+├── cmd/
+│   └── learning-logo/      # Native desktop executable CLI entry point
+├── pkg/
+│   └── server/             # Go loopback HTTP server, embed FS, and API
 ├── docs/
 │   ├── DESIGN.md           # In-depth technical architecture and subsystem contracts
 │   ├── TEST_STRATEGY.md    # Testing philosophy, TDD rules, and verification plan
@@ -54,6 +65,10 @@ LearningLogo/
 ├── scripts/
 │   ├── determine_release_version.mjs  # Conventional Commits semver calculation
 │   ├── generate_versions_manifest.mjs # Manifest generation & retention pruning
+│   ├── installer.nsi                  # Windows NSIS Modern UI 2 installer script
+│   ├── package_windows.sh             # Windows amd64 zip and installer packager
+│   ├── package_macos.sh               # macOS amd64/arm64 .app bundle and zip packager
+│   ├── package_linux.sh               # Linux amd64/arm64 tarball packager
 │   └── pre_commit.sh                  # Local pre-commit verification gate
 ├── src/
 │   ├── index.html          # Application entry point

@@ -1,4 +1,7 @@
 node_modules
 dist
+dist-release
+bin
 .DS_Store
 coverage
+

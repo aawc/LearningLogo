@@ -13,9 +13,84 @@ It runs entirely in modern browsers across low-cost touchscreen Chromebooks, sma
 - **Touch-Friendly Code Editor & REPL**: Multi-line editor with token-based syntax highlighting, single-line immediate REPL command console with history, and a quick-symbol ribbon for bracket/quote insertion on touchscreen devices.
 - **Resizable Split-Pane Workspace**: Accessible, persistent draggable splitter between code editor and graphics canvas with pointer capture, keyboard navigation (Arrow keys, Home, End), double-click 50/50 reset, and automatic canvas synchronization.
 - **Step Debugger & Tracer**: Interactive execution tracer supporting step-by-step evaluation, call stack inspection, and variable watch panels.
+- **Editor-Grade Local Disk File I/O**: Direct in-place file editing, file saving, and file opening via File System Access API with drag-and-drop loading, unsaved changes confirmation dialogs, and standard keyboard shortcuts (`Ctrl+S`, `Ctrl+Shift+S`, `Ctrl+O`, `Ctrl+N`).
+- **High-Performance Go Desktop Binary**: Self-contained, single-binary desktop executable embedding production web assets with loopback security, dynamic port assignment, and automatic browser launch.
+- **Native Multi-Platform Installers**: Windows NSIS installer and standalone zip, macOS `.app` bundle, and Linux FreeDesktop packages with `.desktop` and icon integration.
+- **Automated VirusTotal Security Verification**: Automated release pipeline scanning all binaries and installers across 70+ antivirus engines with permanent SHA-256 verification reports on every release.
 - **Offline-First PWA**: Native Service Worker with Cache-First asset caching strategy and seamless update notifications.
 - **Zero-Friction Sharing**: URL-fragment code compression for instant project sharing and local storage persistence without accounts or servers.
 - **Multi-Version Switching & Automated Releases**: Automated GitHub Pages deployment pipeline preserving historical releases in `/releases/vX.Y.Z/` alongside root, complete with an accessible, keyboard-navigable in-app version switcher that maintains editor drafts and `#code=` hash fragments across version transitions.
+
+---
+
+## Desktop Application & Single-Binary Distribution
+
+LearningLogo is available as a single-binary desktop executable written in Go (`github.com/aawc/learning-logo`) with embedded production web assets. It provides an offline desktop experience without external runtime dependencies or node/python requirements.
+
+### Running the Desktop Binary
+
+```bash
+# Run with automatic dynamic loopback port and browser launch:
+./learning-logo
+
+# Open a specific file on startup:
+./learning-logo my_drawing.logo
+
+# Specify a custom port:
+./learning-logo --port 8080
+
+# Run in headless/server-only mode without opening a browser window:
+./learning-logo --no-browser
+
+# Check version:
+./learning-logo --version
+```
+
+### Local Disk File I/O & Shortcuts
+
+LearningLogo features a file subsystem with bidirectional disk support:
+
+| Shortcut | Action | Description |
+| :--- | :--- | :--- |
+| `Ctrl+S` / `Cmd+S` | **Save** | Writes in-place directly to the active disk file handle without opening dialogs. If no file has been bound yet, prompts the Save As picker. |
+| `Ctrl+Shift+S` / `Cmd+Shift+S` | **Save As...** | Opens the native save file picker, writes content, updates active file name, and binds handle. |
+| `Ctrl+O` / `Cmd+O` | **Open...** | Prompts to discard unsaved changes if dirty, opens native file picker, and loads code into editor. |
+| `Ctrl+N` / `Cmd+N` | **New** | Prompts to discard unsaved changes if dirty, resets editor to starter template, clears active handle, and resets file name to `Untitled.logo`. |
+
+- **Header Indicators**: The title badge displays the active file name and colorblind-safe status badges: `[Saved]` / `[Unsaved]`.
+- **Title Bar Synchronization**: Synchronizes `document.title` to `${isDirty ? '*' : ''}${activeFileName} - LearningLogo`.
+- **Drag-and-Drop**: Drag any `.logo` or `.json` file from your desktop into the window or editor to load it immediately with active file handle binding.
+- **Unsaved Changes Guard**: Prompts confirmation before Open, New, or loading if unsaved changes exist, and issues browser `beforeunload` warnings.
+
+### Native Packaging & Installers
+
+Build scripts located in `scripts/` package native distributions:
+
+- **Windows**:
+  - Script: `scripts/package_windows.sh`
+  - Output: `dist-release/learning-logo-windows-amd64.zip` and `dist-release/learning-logo-windows-amd64-installer.exe` (via `scripts/installer.nsi`)
+  - Features: Installs to `$PROGRAMFILES\LearningLogo`, creates Start Menu and Desktop shortcuts, adds Registry uninstaller entries.
+- **macOS**:
+  - Script: `scripts/package_macos.sh`
+  - Output: `dist-release/learning-logo-macos-amd64.zip`, `dist-release/learning-logo-macos-arm64.zip`, and `.dmg`
+  - Features: Complete `LearningLogo.app` bundle configured via `assets/macos/Info.plist`.
+- **Linux**:
+  - Script: `scripts/package_linux.sh`
+  - Output: `dist-release/learning-logo-linux-amd64.tar.gz` and `dist-release/learning-logo-linux-arm64.tar.gz`
+  - Features: Standalone binary, FreeDesktop launcher `assets/linux/learning-logo.desktop`, and high-resolution icon.
+
+---
+
+## Automated VirusTotal Security & Release Pipeline
+
+The repository provides an automated security evaluation and release workflow in `.github/workflows/release.yml`:
+
+1. **Multi-Platform Cross-Compilation**: Compiles binaries for `windows/amd64`, `darwin/amd64`, `darwin/arm64`, `linux/amd64`, and `linux/arm64` using `go build -trimpath -ldflags="-s -w"`.
+2. **Packaging Matrix**: Packages NSIS installers, macOS `.app` bundles, and Linux tarballs.
+3. **Automated VirusTotal Evaluation**: Submits all release artifacts to VirusTotal via `crazy-max/ghaction-virustotal@v5` with API key secrets.
+4. **Permanent SHA-256 Verification Links**: Computes SHA-256 checksums and includes permanent detection links in the release notes (`https://www.virustotal.com/gui/file/<sha256>/detection`).
+5. **GitHub Release Publication**: Automatically publishes GitHub Releases with attached binaries, installers, and checksum tables via `softprops/action-gh-release@v2`.
+
 
 ---
 
