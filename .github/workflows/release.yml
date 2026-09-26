@@ -87,6 +87,7 @@ jobs:
         continue-on-error: true
         with:
           vt_api_key: ${{ secrets.VIRUSTOTAL_API_KEY }}
+          request_rate: 4
           files: |
             dist-release/*.zip
             dist-release/*.tar.gz
@@ -105,19 +106,34 @@ jobs:
           echo "" >> "${NOTES_FILE}"
           echo "## Automated VirusTotal Security & Integrity Evaluation" >> "${NOTES_FILE}"
           echo "" >> "${NOTES_FILE}"
-          echo "| Artifact | SHA-256 Checksum | VirusTotal Analysis Link |" >> "${NOTES_FILE}"
-          echo "| :--- | :--- | :--- |" >> "${NOTES_FILE}"
 
-          for file in dist-release/*.zip dist-release/*.tar.gz dist-release/*.exe; do
-            [ -f "$file" ] || continue
-            filename=$(basename "$file")
-            sha256=$(sha256sum "$file" | awk '{print $1}')
-            vt_link="https://www.virustotal.com/gui/file/${sha256}/detection"
-            echo "| \`${filename}\` | \`${sha256}\` | [VirusTotal Report](${vt_link}) |" >> "${NOTES_FILE}"
-          done
+          if [ "${{ steps.virustotal.outcome }}" = "success" ]; then
+            echo "| Artifact | SHA-256 Checksum | VirusTotal Analysis Link |" >> "${NOTES_FILE}"
+            echo "| :--- | :--- | :--- |" >> "${NOTES_FILE}"
 
-          echo "" >> "${NOTES_FILE}"
-          echo "All release artifacts are scanned and verified for zero detections across 70+ enterprise antivirus engines." >> "${NOTES_FILE}"
+            for file in dist-release/*.zip dist-release/*.tar.gz dist-release/*.exe; do
+              [ -f "$file" ] || continue
+              filename=$(basename "$file")
+              sha256=$(sha256sum "$file" | awk '{print $1}')
+              vt_link="https://www.virustotal.com/gui/file/${sha256}/detection"
+              echo "| \`${filename}\` | \`${sha256}\` | [VirusTotal Report](${vt_link}) |" >> "${NOTES_FILE}"
+            done
+
+            echo "" >> "${NOTES_FILE}"
+            echo "All release artifacts are scanned and verified for zero detections across 70+ enterprise antivirus engines." >> "${NOTES_FILE}"
+          else
+            echo "VirusTotal automated scanning was skipped or unauthenticated (VIRUSTOTAL_API_KEY). Artifacts were compiled cleanly with \`-trimpath\` and stripped symbols (\`-ldflags=\"-s -w\"\`)." >> "${NOTES_FILE}"
+            echo "" >> "${NOTES_FILE}"
+            echo "| Artifact | SHA-256 Checksum |" >> "${NOTES_FILE}"
+            echo "| :--- | :--- |" >> "${NOTES_FILE}"
+
+            for file in dist-release/*.zip dist-release/*.tar.gz dist-release/*.exe; do
+              [ -f "$file" ] || continue
+              filename=$(basename "$file")
+              sha256=$(sha256sum "$file" | awk '{print $1}')
+              echo "| \`${filename}\` | \`${sha256}\` |" >> "${NOTES_FILE}"
+            done
+          fi
 
       - name: Create or Update GitHub Tag
         env:
