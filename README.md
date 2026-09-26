@@ -11,6 +11,7 @@ It runs entirely in modern browsers across low-cost touchscreen Chromebooks, sma
 - **Client-Side Interpreter**: Fast recursive-descent AST parser and cooperative execution engine supporting classic Logo primitives (`FORWARD`, `BACK`, `LEFT`, `RIGHT`, `REPEAT`, `TO ... END`, variables, math expressions, and conditionals) with time-sliced execution to prevent browser UI lockup.
 - **Accessible Turtle Graphics**: High-DPI HTML5 2D Canvas with Cartesian coordinates `(0, 0)` centered at origin, 0° heading North, and Okabe-Ito colorblind-safe palettes.
 - **Touch-Friendly Code Editor & REPL**: Multi-line editor with token-based syntax highlighting, single-line immediate REPL command console with history, and a quick-symbol ribbon for bracket/quote insertion on touchscreen devices.
+- **Resizable Split-Pane Workspace**: Accessible, persistent draggable splitter between code editor and graphics canvas with pointer capture, keyboard navigation (Arrow keys, Home, End), double-click 50/50 reset, and automatic canvas synchronization.
 - **Step Debugger & Tracer**: Interactive execution tracer supporting step-by-step evaluation, call stack inspection, and variable watch panels.
 - **Offline-First PWA**: Native Service Worker with Cache-First asset caching strategy and seamless update notifications.
 - **Zero-Friction Sharing**: URL-fragment code compression for instant project sharing and local storage persistence without accounts or servers.
@@ -282,4 +283,3 @@ Additionally, because the pipeline pushes to the `gh-pages` branch for historica
 ## License
 
 This project is licensed under the terms of the MIT License. See `LICENSE` for details.
-

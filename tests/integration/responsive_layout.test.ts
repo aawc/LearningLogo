@@ -21,6 +21,10 @@ describe('Responsive Split-Pane Layout Integration', () => {
 
     expect(layout.isStacked()).toBe(false);
     expect(workspace.classList.contains('workspace-side-by-side')).toBe(true);
+    const splitter = workspace.querySelector('#pane-splitter');
+    expect(splitter).not.toBeNull();
+    expect(splitter?.getAttribute('role')).toBe('separator');
+    expect(editorPane.style.flex).toBe('0 0 50%');
   });
 
   it('configures stacked mode on mobile viewports (< 768px)', () => {
@@ -29,5 +33,18 @@ describe('Responsive Split-Pane Layout Integration', () => {
 
     expect(layout.isStacked()).toBe(true);
     expect(workspace.classList.contains('workspace-stacked')).toBe(true);
+    expect(editorPane.style.flex).toBe('');
+    expect(canvasPane.style.flex).toBe('');
+  });
+
+  it('preserves existing #pane-splitter element without duplicating it', () => {
+    window.innerWidth = 1024;
+    const preExistingSplitter = document.createElement('div');
+    preExistingSplitter.id = 'pane-splitter';
+    workspace.insertBefore(preExistingSplitter, canvasPane);
+
+    const layout = new SplitLayout(editorPane, canvasPane, workspace, preExistingSplitter);
+    expect(layout.getSplitter()).toBe(preExistingSplitter);
+    expect(workspace.querySelectorAll('#pane-splitter').length).toBe(1);
   });
 });

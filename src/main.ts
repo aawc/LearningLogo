@@ -74,6 +74,7 @@ export function initializeApp(): void {
   const workspaceContainer = document.getElementById('workspace-container');
   const editorPane = document.getElementById('editor-pane');
   const canvasPane = document.getElementById('canvas-pane');
+  const paneSplitter = document.getElementById('pane-splitter');
 
   if (
     !editorContainer ||
@@ -146,6 +147,13 @@ export function initializeApp(): void {
 
   window.addEventListener('resize', resizeCanvas);
   setTimeout(resizeCanvas, 50);
+
+  if (typeof ResizeObserver !== 'undefined') {
+    const resizeObserver = new ResizeObserver(() => {
+      resizeCanvas();
+    });
+    resizeObserver.observe(canvasContainer);
+  }
 
   // 4. Debugger Controls & Inspector Setup
   const controlsDiv = document.createElement('div');
@@ -512,7 +520,11 @@ export function initializeApp(): void {
   headerContainer.appendChild(actions);
 
   // 8. Responsive Layout
-  new SplitLayout(editorPane, canvasPane, workspaceContainer);
+  new SplitLayout(editorPane, canvasPane, workspaceContainer, paneSplitter, {
+    onResize: () => {
+      resizeCanvas();
+    },
+  });
 
   // 9. Initial Code Loading (URL Hash -> LocalStorage Draft -> Default Starter)
   const sharedCode = extractCodeFromUrl(window.location.href);
