@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { tokenize } from '../../../src/interpreter/lexer.ts';
 import { parse } from '../../../src/interpreter/parser.ts';
 import { Environment } from '../../../src/interpreter/environment.ts';
@@ -291,5 +291,267 @@ TEST_LOCAL
     }
 
     expect(turtle.getPathSegments().length).toBeGreaterThan(20);
+  });
+
+  describe('Terrapin Drawing Commands & Reporters Wiring', () => {
+    it('executes motion commands and evaluates reporters (GETX, GETY, GETXY, POS, SETPOS, DISTANCE)', () => {
+      const code = `
+SETPOS [30 40]
+MAKE "X GETX
+MAKE "Y GETY
+MAKE "P GETXY
+MAKE "D DISTANCE [0 0]
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('X')).toBe(30);
+      expect(env.get('Y')).toBe(40);
+      expect(env.get('P')).toEqual([30, 40]);
+      expect(env.get('D')).toBe(50);
+    });
+
+    it('manages turtle visibility and scale (HT, ST, SHOWN?, SETTURTLESIZE, TURTLESIZE)', () => {
+      const code = `
+HT
+MAKE "H SHOWN?
+ST
+MAKE "S SHOWN?
+SETTURTLESIZE 2.5
+MAKE "TS TURTLESIZE
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('H')).toBe(false);
+      expect(env.get('S')).toBe(true);
+      expect(env.get('TS')).toBe(2.5);
+    });
+
+    it('manages coordinate origin (SETORIGIN, ORIGIN)', () => {
+      const code = `
+SETORIGIN [50 -25]
+MAKE "ORG ORIGIN
+(SETORIGIN)
+MAKE "RESET_ORG ORIGIN
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('ORG')).toEqual([50, -25]);
+      expect(env.get('RESET_ORG')).toEqual([0, 0]);
+    });
+
+    it('manages polar navigation (SETP, PSETHEADING, PDIST, PANGLE, PHEADING, PPOS)', () => {
+      const code = `
+SETP 50 0
+MAKE "PD PDIST
+MAKE "PA PANGLE
+MAKE "PH PHEADING
+MAKE "PP PPOS
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(Math.round(Number(env.get('PD')))).toBe(50);
+      expect(Math.round(Number(env.get('PA')))).toBe(0);
+      expect(Math.round(Number(env.get('PH')))).toBe(0);
+      expect(env.get('PP')).toEqual([50, 0]);
+    });
+
+    it('manages pen modes, width, step size (PE, PX, PD, PU, PEN, PENDOWN?, SETWIDTH, WIDTH, SETSTEPSIZE, STEPSIZE)', () => {
+      const code = `
+PE
+MAKE "M1 PEN
+MAKE "D1 PENDOWN?
+PX
+MAKE "M2 PEN
+PU
+MAKE "M3 PEN
+MAKE "D2 PENDOWN?
+SETWIDTH 4
+MAKE "W WIDTH
+SETSTEPSIZE 3
+MAKE "SS STEPSIZE
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('M1')).toBe('PENERASE');
+      expect(env.get('D1')).toBe(true);
+      expect(env.get('M2')).toBe('PENREVERSE');
+      expect(env.get('M3')).toBe('PENUP');
+      expect(env.get('D2')).toBe(false);
+      expect(env.get('W')).toBe(4);
+      expect(env.get('SS')).toBe(3);
+    });
+
+    it('manages speed and velocity (SETSPEED, SLOWTURTLE, SPEED, SETVELOCITY, VELOCITY)', () => {
+      const code = `
+SETSPEED 0.8
+MAKE "S1 SPEED
+SLOWTURTLE
+MAKE "S2 SPEED
+SETVELOCITY 120
+MAKE "V VELOCITY
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('S1')).toBe(0.8);
+      expect(env.get('S2')).toBe(0.5);
+      expect(env.get('V')).toBe(120);
+    });
+
+    it('executes shape stamping, text, and fill (STAMPOVAL, STAMPRECT, DOT, FILL, TT)', () => {
+      const code = `
+DOT [10 10]
+(FILL "#0072B2)
+STAMPOVAL 20 10
+(STAMPRECT 30 20 "TRUE)
+TT "HELLO
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      const elements = turtle.getDrawElements();
+      expect(elements.some(e => e.type === 'dot')).toBe(true);
+      expect(elements.some(e => e.type === 'fill')).toBe(true);
+      expect(elements.some(e => e.type === 'oval')).toBe(true);
+      expect(elements.some(e => e.type === 'rect')).toBe(true);
+      expect(elements.some(e => e.type === 'text')).toBe(true);
+    });
+
+    it('manages typography commands (SETFONT, FONT, FONTS, TTBASE, TTSIZE)', () => {
+      const code = `
+SETFONT "Times 16 1
+MAKE "F FONT
+MAKE "FL FONTS
+MAKE "TB TTBASE
+MAKE "TS TURTLETEXTSIZE "HELLO
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('F')).toEqual(['TIMES', 16, 1]);
+      expect(Array.isArray(env.get('FL'))).toBe(true);
+      expect(Number(env.get('TB'))).toBeGreaterThan(0);
+      const ts = env.get('TS') as number[];
+      expect(ts[0]).toBeGreaterThan(0);
+      expect(ts[1]).toBeGreaterThan(0);
+    });
+
+    it('allows 2-argument parenthesized (SETFONT "Arial 14) with default attributes (F7)', () => {
+      const code = '(SETFONT "Arial 14)\nMAKE "F FONT';
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('F')).toEqual(['ARIAL', 14, 0]);
+    });
+
+    it('supports short abbreviations in SETPEN (PE, PX, PD, PU) (F9)', () => {
+      const code = `
+SETPEN "PE
+MAKE "P1 PEN
+SETPEN "PX
+MAKE "P2 PEN
+SETPEN ["PU]
+MAKE "P3 PEN
+SETPEN ["PD "#D55E00]
+MAKE "P4 PEN
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+
+      for (const _ of runtime.execute(ast, env, turtle, token)) {}
+
+      expect(env.get('P1')).toBe('PENERASE');
+      expect(env.get('P2')).toBe('PENREVERSE');
+      expect(env.get('P3')).toBe('PENUP');
+      expect(env.get('P4')).toBe('PENDOWN');
+      expect(turtle.getState().penColor).toBe('#D55E00');
+    });
+
+    it('flushes pending draw elements and applies origin in DOT? and DOTCOLOR (F4)', () => {
+      const renderDrawElementsSpy = vi.fn();
+      const mockRenderer = {
+        renderDrawElements: renderDrawElementsSpy,
+        isPixelActive: vi.fn().mockReturnValue(true),
+        getPixelColor: vi.fn().mockReturnValue([0, 114, 178]),
+      } as unknown as import('../../../src/graphics/renderer.ts').CanvasRenderer;
+
+      const code = `
+SETORIGIN [50 50]
+DOT [10 10]
+MAKE "ACTIVE (DOT? [10 10])
+MAKE "COLOR (DOTCOLOR [10 10])
+`;
+      const ast = parse(tokenize(code));
+      const env = new Environment();
+      const turtle = new Turtle();
+      const token = new CancellationToken();
+      const runtime = new Runtime();
+      runtime.setRenderer(mockRenderer);
+
+      for (const _ of runtime.execute(ast, env, turtle, token, { renderer: mockRenderer })) {}
+
+      expect(renderDrawElementsSpy).toHaveBeenCalled();
+      expect(mockRenderer.isPixelActive).toHaveBeenCalledWith(
+        { x: 60, y: 60 }, // 10 + origin 50 = 60
+        expect.anything()
+      );
+      expect(mockRenderer.getPixelColor).toHaveBeenCalledWith(
+        { x: 60, y: 60 }, // 10 + origin 50 = 60
+        expect.anything()
+      );
+    });
   });
 });

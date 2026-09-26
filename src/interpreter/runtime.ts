@@ -18,7 +18,8 @@ import type {
 } from './ast.ts';
 import type { SourceLocation } from './token.ts';
 import { Environment, type LogoValue } from './environment.ts';
-import type { Turtle } from '../graphics/turtle.ts';
+import type { Turtle, PenMode } from '../graphics/turtle.ts';
+import type { CanvasRenderer } from '../graphics/renderer.ts';
 import {
   InstructionBudgetExceededError,
   RuntimeError,
@@ -59,6 +60,7 @@ export interface ExecutionStep {
 export interface RuntimeOptions {
   instructionCeiling?: number;
   yieldInterval?: number;
+  renderer?: CanvasRenderer;
 }
 
 export class ReturnSignal {
@@ -72,6 +74,7 @@ export class Runtime {
   private instructionCount = 0;
   private instructionCeiling = 100000;
   private outputLogs: string[] = [];
+  private renderer?: CanvasRenderer;
 
   getLogs(): readonly string[] {
     return this.outputLogs;
@@ -79,6 +82,10 @@ export class Runtime {
 
   clearLogs(): void {
     this.outputLogs = [];
+  }
+
+  setRenderer(renderer?: CanvasRenderer): void {
+    this.renderer = renderer;
   }
 
   *execute(
@@ -90,6 +97,7 @@ export class Runtime {
   ): Generator<ExecutionStep, void, unknown> {
     this.instructionCount = 0;
     this.instructionCeiling = options?.instructionCeiling ?? 100000;
+    this.renderer = options?.renderer ?? this.renderer;
 
     for (const stmt of program.body) {
       if (cancelToken.isCancelled) return;
@@ -191,7 +199,7 @@ export class Runtime {
         const cmd = node as CommandCallNode;
         yield {
           type: 'COMMAND',
-          node: cmd,
+          node,
           location: cmd.loc,
           env,
         };
@@ -262,7 +270,7 @@ export class Runtime {
       return;
     }
 
-    // Built-in turtle commands
+    // Built-in turtle commands helper
     const evalArg = (idx: number): LogoValue => {
       const arg = cmd.args[idx];
       if (!arg) {
@@ -272,6 +280,7 @@ export class Runtime {
     };
 
     switch (name) {
+      // Group 1: Motion Commands
       case 'FD':
       case 'FORWARD':
         turtle.forward(Number(evalArg(0)));
@@ -307,42 +316,21 @@ export class Runtime {
         yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
         break;
 
-      case 'PU':
-      case 'PENUP':
-        turtle.penUp();
-        break;
-
-      case 'PD':
-      case 'PENDOWN':
-        turtle.penDown();
-        break;
-
-      case 'HT':
-      case 'HIDETURTLE':
-        turtle.hideTurtle();
-        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
-        break;
-
-      case 'ST':
-      case 'SHOWTURTLE':
-        turtle.showTurtle();
-        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
-        break;
-
-      case 'SETPC':
-      case 'SETPENCOLOR':
-        turtle.setPenColor(String(evalArg(0)));
-        break;
-
-      case 'SETPW':
-      case 'SETPENWIDTH':
-        turtle.setPenWidth(Number(evalArg(0)));
-        break;
-
       case 'SETXY':
-        turtle.setXY(Number(evalArg(0)), Number(evalArg(1)));
+      case 'SETPOS': {
+        if (cmd.args.length === 1) {
+          const pt = evalArg(0);
+          if (Array.isArray(pt)) {
+            turtle.setXY(Number(pt[0] ?? 0), Number(pt[1] ?? 0));
+          } else {
+            turtle.setXY(Number(pt), 0);
+          }
+        } else {
+          turtle.setXY(Number(evalArg(0)), Number(evalArg(1)));
+        }
         yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
         break;
+      }
 
       case 'SETX':
         turtle.setX(Number(evalArg(0)));
@@ -365,9 +353,235 @@ export class Runtime {
         yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
         break;
 
+      // Group 2: Visibility & Scale
+      case 'PU':
+      case 'PENUP':
+        turtle.penUp();
+        break;
+
+      case 'PD':
+      case 'PENDOWN':
+        turtle.penDown();
+        break;
+
+      case 'PE':
+      case 'PENERASE':
+        turtle.penErase();
+        break;
+
+      case 'PX':
+      case 'PENREVERSE':
+        turtle.penReverse();
+        break;
+
+      case 'HT':
+      case 'HIDETURTLE':
+        turtle.hideTurtle();
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+
+      case 'ST':
+      case 'SHOWTURTLE':
+        turtle.showTurtle();
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+
+      case 'SETTURTLESIZE':
+      case 'SETTSIZE':
+      case 'SETTS':
+        turtle.setTurtleSize(Number(evalArg(0)));
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+
+      // Group 3: Coordinate Origin
+      case 'SETORIGIN': {
+        if (cmd.args.length === 0) {
+          turtle.resetOrigin();
+        } else if (cmd.args.length === 1) {
+          const pt = evalArg(0);
+          if (Array.isArray(pt)) {
+            turtle.setOrigin(Number(pt[0] ?? 0), Number(pt[1] ?? 0));
+          } else {
+            turtle.setOrigin(Number(pt), 0);
+          }
+        } else {
+          turtle.setOrigin(Number(evalArg(0)), Number(evalArg(1)));
+        }
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+      }
+
+      // Group 4: Polar Coordinates
+      case 'PSETH':
+      case 'PSETHEADING':
+        turtle.setPolarHeading(Number(evalArg(0)));
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+
+      case 'SETP': {
+        if (cmd.args.length === 1) {
+          const pt = evalArg(0);
+          if (Array.isArray(pt)) {
+            turtle.setPolarPos(Number(pt[0] ?? 0), Number(pt[1] ?? 0));
+          } else {
+            turtle.setPolarPos(Number(pt), 0);
+          }
+        } else {
+          turtle.setPolarPos(Number(evalArg(0)), Number(evalArg(1)));
+        }
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+      }
+
+      // Group 5: Pen Modes & Attributes
+      case 'SETPEN': {
+        const normalizeMode = (m: unknown): PenMode | null => {
+          const upper = String(m).toUpperCase();
+          if (upper === 'PENDOWN' || upper === 'PD') return 'PENDOWN';
+          if (upper === 'PENUP' || upper === 'PU') return 'PENUP';
+          if (upper === 'PENERASE' || upper === 'PE') return 'PENERASE';
+          if (upper === 'PENREVERSE' || upper === 'PX') return 'PENREVERSE';
+          return null;
+        };
+
+        const arg = evalArg(0);
+        if (Array.isArray(arg)) {
+          if (arg[0] !== undefined) {
+            const mode = normalizeMode(arg[0]);
+            if (mode) {
+              turtle.setPenMode(mode);
+            }
+          }
+          if (arg[1] !== undefined) {
+            turtle.setPenColor(String(arg[1]));
+          }
+        } else {
+          const mode = normalizeMode(arg);
+          if (mode) {
+            turtle.setPenMode(mode);
+          }
+        }
+        break;
+      }
+
+      case 'SETPC':
+      case 'SETPENCOLOR':
+        turtle.setPenColor(String(evalArg(0)));
+        break;
+
+      case 'SETW':
+      case 'SETWIDTH':
+      case 'SETPW':
+      case 'SETPENWIDTH':
       case 'PENSIZE':
         turtle.setPenWidth(Number(evalArg(0)));
         break;
+
+      case 'SETSTEPSIZE':
+        turtle.setStepSize(Number(evalArg(0)));
+        break;
+
+      // Group 6: Speed & Dynamics
+      case 'SETSPEED':
+        turtle.setSpeed(Number(evalArg(0)));
+        break;
+
+      case 'SLOWTURTLE':
+        turtle.setSpeed(0.5);
+        break;
+
+      case 'SETVELOCITY':
+        turtle.setVelocity(Number(evalArg(0)));
+        break;
+
+      // Group 7: Shapes, Dots & Fills
+      case 'DOT': {
+        if (cmd.args.length === 0) {
+          turtle.dot();
+        } else if (cmd.args.length === 1) {
+          const arg = evalArg(0);
+          if (Array.isArray(arg)) {
+            turtle.dot(Number(arg[0] ?? turtle.getState().x), Number(arg[1] ?? turtle.getState().y));
+          } else {
+            turtle.dot(Number(arg), turtle.getState().y);
+          }
+        } else if (cmd.args.length === 2) {
+          const a0 = evalArg(0);
+          const a1 = evalArg(1);
+          if (Array.isArray(a0)) {
+            turtle.dot(Number(a0[0]), Number(a0[1]), String(a1));
+          } else {
+            turtle.dot(Number(a0), Number(a1));
+          }
+        } else {
+          turtle.dot(Number(evalArg(0)), Number(evalArg(1)), String(evalArg(2)));
+        }
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+      }
+
+      case 'FILL': {
+        const color = cmd.args.length > 0 ? String(evalArg(0)) : undefined;
+        turtle.fill(color);
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+      }
+
+      case 'STAMPOVAL': {
+        const rx = Number(evalArg(0));
+        const ry = Number(evalArg(1));
+        let filled = false;
+        if (cmd.args.length > 2) {
+          const fArg = evalArg(2);
+          filled = String(fArg).toUpperCase() === 'TRUE' || fArg === true;
+        }
+        const color = cmd.args.length > 3 ? String(evalArg(3)) : undefined;
+        turtle.stampOval(rx, ry, filled, color);
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+      }
+
+      case 'STAMPRECT': {
+        const w = Number(evalArg(0));
+        const h = Number(evalArg(1));
+        let filled = false;
+        if (cmd.args.length > 2) {
+          const fArg = evalArg(2);
+          filled = String(fArg).toUpperCase() === 'TRUE' || fArg === true;
+        }
+        const color = cmd.args.length > 3 ? String(evalArg(3)) : undefined;
+        turtle.stampRect(w, h, filled, color);
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+      }
+
+      // Group 8: Typography
+      case 'SETFONT': {
+        if (cmd.args.length === 0) {
+          turtle.resetFont();
+        } else if (cmd.args.length === 1) {
+          const arg = evalArg(0);
+          if (Array.isArray(arg)) {
+            turtle.setFont(String(arg[0] ?? 'Arial'), Number(arg[1] ?? 12), Number(arg[2] ?? 0));
+          } else {
+            turtle.setFont(String(arg));
+          }
+        } else {
+          const name = String(evalArg(0));
+          const size = cmd.args[1] ? Number(evalArg(1)) : undefined;
+          const attr = cmd.args[2] ? Number(evalArg(2)) : undefined;
+          turtle.setFont(name, size, attr);
+        }
+        break;
+      }
+
+      case 'TT':
+      case 'TURTLETEXT': {
+        const val = evalArg(0);
+        turtle.turtleText(Array.isArray(val) ? val.join(' ') : String(val));
+        yield { type: 'TURTLE_ACTION', node: cmd, location: cmd.loc, env };
+        break;
+      }
 
       case 'ARC':
         turtle.arc(Number(evalArg(0)), Number(evalArg(1)));
@@ -399,19 +613,50 @@ export class Runtime {
         break;
       }
 
-      case 'XCOR':
-      case 'YCOR':
-      case 'HEADING':
-      case 'TOWARDS':
-      case 'THING':
-        break;
-
       case 'PRINT':
       case 'PR': {
         const val = evalArg(0);
         this.outputLogs.push(String(val));
         break;
       }
+
+      // Zero-arity / Reporter commands executed as statements (ignore return value)
+      case 'XCOR':
+      case 'GETX':
+      case 'YCOR':
+      case 'GETY':
+      case 'POS':
+      case 'GETXY':
+      case 'HEADING':
+      case 'TOWARDS':
+      case 'DISTANCE':
+      case 'SHOWN?':
+      case 'SHOWNP':
+      case 'TURTLESIZE':
+      case 'TSIZE':
+      case 'ORIGIN':
+      case 'PDIST':
+      case 'PANGLE':
+      case 'PHEADING':
+      case 'PPOS':
+      case 'PEN':
+      case 'PENDOWN?':
+      case 'PENDOWNP':
+      case 'WIDTH':
+      case 'STEPSIZE':
+      case 'SPEED':
+      case 'VELOCITY':
+      case 'DOT?':
+      case 'DOTP':
+      case 'DOTCOLOR':
+      case 'FONT':
+      case 'FONTS':
+      case 'TURTLETEXTBASE':
+      case 'TTBASE':
+      case 'TURTLETEXTSIZE':
+      case 'TTSIZE':
+      case 'THING':
+        break;
 
       default:
         if (isPrimitive(name)) {
@@ -444,6 +689,12 @@ export class Runtime {
         const listNode = expr as ListLiteralNode;
         return listNode.elements.map((el) => {
           if (typeof el === 'object' && el !== null && 'type' in el) {
+            if (el.type === 'CommandCall') {
+              const cmd = el as CommandCallNode;
+              if (cmd.args.length === 0 && !env.getProcedure(cmd.name) && !isPrimitive(cmd.name)) {
+                return cmd.name;
+              }
+            }
             return this.evaluateExpression(el as ExpressionNode, env, turtle);
           }
           return el;
@@ -503,6 +754,7 @@ export class Runtime {
       case 'CommandCall': {
         const cmd = expr as CommandCallNode;
         const name = cmd.name.toUpperCase();
+
         if (name === 'REPCOUNT') {
           try {
             return env.get('REPCOUNT');
@@ -510,20 +762,163 @@ export class Runtime {
             return 1;
           }
         }
-        if (name === 'XCOR') {
+
+        // Group 1: Motion Reporters
+        if (name === 'XCOR' || name === 'GETX') {
           return turtle.getState().x;
         }
-        if (name === 'YCOR') {
+        if (name === 'YCOR' || name === 'GETY') {
           return turtle.getState().y;
+        }
+        if (name === 'POS' || name === 'GETXY') {
+          return [turtle.getState().x, turtle.getState().y];
         }
         if (name === 'HEADING') {
           return turtle.getState().heading;
         }
         if (name === 'TOWARDS') {
+          if (cmd.args.length === 1) {
+            const pt = this.evaluateExpression(cmd.args[0]!, env, turtle);
+            if (Array.isArray(pt)) {
+              return turtle.towards(Number(pt[0]), Number(pt[1]));
+            }
+          }
           const tx = Number(this.evaluateExpression(cmd.args[0]!, env, turtle));
           const ty = Number(this.evaluateExpression(cmd.args[1]!, env, turtle));
           return turtle.towards(tx, ty);
         }
+        if (name === 'DISTANCE') {
+          if (cmd.args.length === 1) {
+            const pt = this.evaluateExpression(cmd.args[0]!, env, turtle);
+            if (Array.isArray(pt)) {
+              return turtle.distanceTo(Number(pt[0]), Number(pt[1]));
+            }
+          }
+          const dx = Number(this.evaluateExpression(cmd.args[0]!, env, turtle));
+          const dy = Number(this.evaluateExpression(cmd.args[1]!, env, turtle));
+          return turtle.distanceTo(dx, dy);
+        }
+
+        // Group 2: Visibility & Scale
+        if (name === 'SHOWN?' || name === 'SHOWNP') {
+          return turtle.getState().isVisible;
+        }
+        if (name === 'TURTLESIZE' || name === 'TSIZE') {
+          return turtle.getTurtleSize();
+        }
+
+        // Group 3: Coordinate Origin
+        if (name === 'ORIGIN') {
+          const org = turtle.getOrigin();
+          return [org.x, org.y];
+        }
+
+        // Group 4: Polar Coordinates
+        if (name === 'PDIST') {
+          return turtle.getPolarDistance();
+        }
+        if (name === 'PANGLE') {
+          return turtle.getPolarAngle();
+        }
+        if (name === 'PHEADING') {
+          return turtle.getPolarHeading();
+        }
+        if (name === 'PPOS') {
+          return turtle.getPolarPos();
+        }
+
+        // Group 5: Pen Modes & Attributes
+        if (name === 'PEN') {
+          return turtle.getPenMode();
+        }
+        if (name === 'PENDOWN?' || name === 'PENDOWNP') {
+          return turtle.isPenDownMode();
+        }
+        if (name === 'WIDTH') {
+          return turtle.getState().penWidth;
+        }
+        if (name === 'STEPSIZE') {
+          return turtle.getStepSize();
+        }
+
+        // Group 6: Speed & Dynamics
+        if (name === 'SPEED') {
+          return turtle.getSpeed();
+        }
+        if (name === 'VELOCITY') {
+          return turtle.getVelocity();
+        }
+
+        // Group 7: Shapes & Pixels
+        if (name === 'DOT?' || name === 'DOTP') {
+          const defaultVp = { width: 800, height: 600, zoom: 1, panX: 0, panY: 0 };
+          let localPt = { x: turtle.getState().x, y: turtle.getState().y };
+          if (cmd.args.length === 1) {
+            const arg = this.evaluateExpression(cmd.args[0]!, env, turtle);
+            if (Array.isArray(arg)) {
+              localPt = { x: Number(arg[0] ?? localPt.x), y: Number(arg[1] ?? localPt.y) };
+            }
+          } else if (cmd.args.length === 2) {
+            localPt = {
+              x: Number(this.evaluateExpression(cmd.args[0]!, env, turtle)),
+              y: Number(this.evaluateExpression(cmd.args[1]!, env, turtle)),
+            };
+          }
+          const origin = turtle.getOrigin();
+          const worldPt = { x: localPt.x + origin.x, y: localPt.y + origin.y };
+          if (this.renderer) {
+            this.renderer.renderDrawElements(turtle.getDrawElements(), defaultVp);
+            return this.renderer.isPixelActive(worldPt, defaultVp);
+          }
+          return false;
+        }
+
+        if (name === 'DOTCOLOR') {
+          const defaultVp = { width: 800, height: 600, zoom: 1, panX: 0, panY: 0 };
+          let localPt = { x: turtle.getState().x, y: turtle.getState().y };
+          if (cmd.args.length === 1) {
+            const arg = this.evaluateExpression(cmd.args[0]!, env, turtle);
+            if (Array.isArray(arg)) {
+              localPt = { x: Number(arg[0] ?? localPt.x), y: Number(arg[1] ?? localPt.y) };
+            }
+          } else if (cmd.args.length === 2) {
+            localPt = {
+              x: Number(this.evaluateExpression(cmd.args[0]!, env, turtle)),
+              y: Number(this.evaluateExpression(cmd.args[1]!, env, turtle)),
+            };
+          }
+          const origin = turtle.getOrigin();
+          const worldPt = { x: localPt.x + origin.x, y: localPt.y + origin.y };
+          if (this.renderer) {
+            this.renderer.renderDrawElements(turtle.getDrawElements(), defaultVp);
+            return this.renderer.getPixelColor(worldPt, defaultVp);
+          }
+          return [255, 255, 255];
+        }
+
+        // Group 8: Typography
+        if (name === 'FONT') {
+          const f = turtle.getFont();
+          return [f.name, f.size, f.attributes];
+        }
+        if (name === 'FONTS') {
+          return [...turtle.getFonts()];
+        }
+        if (name === 'TURTLETEXTBASE' || name === 'TTBASE') {
+          if (this.renderer) {
+            return this.renderer.measureTextBaseline(turtle.getFont());
+          }
+          return Math.round(turtle.getFont().size * 0.8);
+        }
+        if (name === 'TURTLETEXTSIZE' || name === 'TTSIZE') {
+          const tVal = this.evaluateExpression(cmd.args[0]!, env, turtle);
+          const text = Array.isArray(tVal) ? tVal.join(' ') : String(tVal);
+          if (this.renderer) {
+            return this.renderer.measureTextDimensions(text, turtle.getFont());
+          }
+          return [Math.round(text.length * turtle.getFont().size * 0.6), Math.round(turtle.getFont().size * 1.2)];
+        }
+
         if (name === 'THING') {
           const vArg = cmd.args[0];
           let vName = '';
@@ -534,11 +929,13 @@ export class Runtime {
           }
           return env.get(vName);
         }
+
         // Check primitive function (e.g. SUM, PRODUCT, etc.)
         if (isPrimitive(name)) {
           const evaluatedArgs = cmd.args.map((a) => this.evaluateExpression(a, env, turtle));
           return executePrimitive(name, evaluatedArgs);
         }
+
         // Check user-defined function returning with OUTPUT
         const proc = env.getProcedure(name);
         if (proc) {
