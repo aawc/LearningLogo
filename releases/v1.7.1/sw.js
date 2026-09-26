@@ -1,4 +1,4 @@
-const APP_VERSION = 'v1.0.1';
+const APP_VERSION = 'v1.7.1';
 const CACHE_NAME = 'learning-logo-' + APP_VERSION;
 const PRECACHE_ASSETS = [
   './',
