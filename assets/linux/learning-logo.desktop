@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=LearningLogo
+Comment=Educational Logo Programming Environment for Kids
+Exec=learning-logo %u
+Icon=learning-logo
+Terminal=false
+Type=Application
+Categories=Education;Development;
+MimeType=text/x-logo;
+StartupWMClass=LearningLogo
